@@ -2,6 +2,7 @@ import { Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export const Home = () => {
+  console.log("Home component is rendering");
   return (
     <div className="min-h-screen bg-gradient-hero relative overflow-hidden">
       {/* Header */}
