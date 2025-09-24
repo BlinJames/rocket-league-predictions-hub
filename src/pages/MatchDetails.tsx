@@ -1,23 +1,124 @@
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { useState } from 'react';
-import { CheckCircle, Trophy } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { CheckCircle, Trophy, AlertCircle } from 'lucide-react';
+import { z } from 'zod';
+
+// Schema de validation pour les scores
+const scoreSchema = z.object({
+  teamAScore: z.number().min(0).max(7),
+  teamBScore: z.number().min(0).max(7),
+}).refine((data) => {
+  // Validation personnalisée selon le format du match
+  return true; // On validera plus tard selon BO5/BO7
+});
+
+// Type pour les données du match
+interface MatchData {
+  id: string;
+  teamA: { name: string; shortName: string; color: string };
+  teamB: { name: string; shortName: string; color: string };
+  matchType: 'bo5' | 'bo7';
+  scheduledAt: string;
+  tournament: string;
+}
 
 export const MatchDetails = () => {
-  const [selectedTeam, setSelectedTeam] = useState<'karmine' | 'falcon' | null>(null);
+  const [selectedTeam, setSelectedTeam] = useState<'teamA' | 'teamB' | null>(null);
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const [isSuccessDialogOpen, setIsSuccessDialogOpen] = useState(false);
+  const [teamAScore, setTeamAScore] = useState<number>(0);
+  const [teamBScore, setTeamBScore] = useState<number>(0);
+  const [scoreErrors, setScoreErrors] = useState<string[]>([]);
+  const [matchData, setMatchData] = useState<MatchData | null>(null);
   const { toast } = useToast();
 
+  // Simuler les données du match (à remplacer par un appel Supabase)
+  useEffect(() => {
+    // TODO: Récupérer depuis Supabase avec l'ID du match
+    setMatchData({
+      id: '1',
+      teamA: { name: 'Karmine Corp', shortName: 'KC', color: '#1e90ff' },
+      teamB: { name: 'Team Falcons', shortName: 'F', color: '#32cd32' },
+      matchType: 'bo5', // ou 'bo7'
+      scheduledAt: '2024-09-14T20:00:00Z',
+      tournament: 'RLCS M1'
+    });
+  }, []);
+
+  const validateScore = (scoreA: number, scoreB: number): string[] => {
+    const errors: string[] = [];
+    if (!matchData) return errors;
+    
+    const maxWins = matchData.matchType === 'bo5' ? 3 : 4;
+    const maxScore = maxWins;
+    
+    if (scoreA < 0 || scoreB < 0) {
+      errors.push('Les scores ne peuvent pas être négatifs');
+    }
+    
+    if (scoreA > maxScore || scoreB > maxScore) {
+      errors.push(`Score maximum pour un ${matchData.matchType.toUpperCase()}: ${maxScore}`);
+    }
+    
+    // Un des deux scores doit être le score gagnant
+    if (scoreA !== maxScore && scoreB !== maxScore) {
+      errors.push(`Un des scores doit être ${maxScore} pour gagner en ${matchData.matchType.toUpperCase()}`);
+    }
+    
+    // Les deux ne peuvent pas avoir le score gagnant
+    if (scoreA === maxScore && scoreB === maxScore) {
+      errors.push('Les deux équipes ne peuvent pas avoir le score gagnant');
+    }
+    
+    // Vérifier que le perdant n'a pas un score trop élevé
+    if (scoreA === maxScore && scoreB >= maxScore) {
+      errors.push(`Si ${matchData.teamA.shortName} gagne ${maxScore}, ${matchData.teamB.shortName} doit avoir moins de ${maxScore}`);
+    }
+    if (scoreB === maxScore && scoreA >= maxScore) {
+      errors.push(`Si ${matchData.teamB.shortName} gagne ${maxScore}, ${matchData.teamA.shortName} doit avoir moins de ${maxScore}`);
+    }
+    
+    return errors;
+  };
+
+  const handleScoreChange = (team: 'A' | 'B', value: string) => {
+    const numValue = parseInt(value) || 0;
+    if (team === 'A') {
+      setTeamAScore(numValue);
+      setScoreErrors(validateScore(numValue, teamBScore));
+    } else {
+      setTeamBScore(numValue);
+      setScoreErrors(validateScore(teamAScore, numValue));
+    }
+  };
+
   const handlePredictionSubmit = () => {
+    if (!matchData || !selectedTeam) return;
+    
+    const errors = validateScore(teamAScore, teamBScore);
+    if (errors.length > 0) {
+      setScoreErrors(errors);
+      return;
+    }
+    
     setIsConfirmDialogOpen(false);
     setIsSuccessDialogOpen(true);
+    
+    const winnerName = selectedTeam === 'teamA' ? matchData.teamA.name : matchData.teamB.name;
     toast({
       title: "Pronostic enregistré !",
-      description: `Vous avez parié sur ${selectedTeam === 'karmine' ? 'Karmine Corp' : 'Team Falcons'}`,
+      description: `Vous avez parié sur ${winnerName} avec le score ${teamAScore}-${teamBScore}`,
     });
   };
+
+  if (!matchData) {
+    return <div className="min-h-screen bg-black flex items-center justify-center text-white">Chargement...</div>;
+  }
 
   return (
     <div className="min-h-screen bg-black relative overflow-hidden">
@@ -31,25 +132,34 @@ export const MatchDetails = () => {
         <header className="p-4 text-white">
           <div className="flex justify-between items-center mb-4">
             <h1 className="text-lg font-bold">Prochain match</h1>
-            <span className="text-sm opacity-80">RLCS M1</span>
+            <div className="flex gap-2">
+              <Badge variant="secondary" className="text-xs">{matchData.tournament}</Badge>
+              <Badge variant="outline" className="text-xs">{matchData.matchType.toUpperCase()}</Badge>
+            </div>
           </div>
-          <p className="text-sm opacity-80">14 SEPT 2024 - 20:00</p>
-          <p className="text-xs opacity-60">BDS</p>
+          <p className="text-sm opacity-80">{new Date(matchData.scheduledAt).toLocaleDateString('fr-FR', { 
+            day: 'numeric', 
+            month: 'short', 
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          })}</p>
         </header>
 
         {/* Teams Match */}
         <div className="px-4 py-8">
           <div className="flex items-center justify-between mb-8">
             <button
-              onClick={() => setSelectedTeam(selectedTeam === 'karmine' ? null : 'karmine')}
+              onClick={() => setSelectedTeam(selectedTeam === 'teamA' ? null : 'teamA')}
               className={`text-center transition-all duration-200 ${
-                selectedTeam === 'karmine' ? 'scale-110 opacity-100' : 'opacity-70 hover:opacity-90'
+                selectedTeam === 'teamA' ? 'scale-110 opacity-100' : 'opacity-70 hover:opacity-90'
               }`}
             >
-              <div className="w-20 h-20 bg-gaming-blue rounded-full mx-auto mb-3 flex items-center justify-center border-4 border-transparent">
-                <span className="text-white font-bold text-xl">KC</span>
+              <div className="w-20 h-20 rounded-full mx-auto mb-3 flex items-center justify-center border-4 border-transparent" 
+                   style={{ backgroundColor: matchData.teamA.color }}>
+                <span className="text-white font-bold text-xl">{matchData.teamA.shortName}</span>
               </div>
-              <h3 className="font-bold text-white">Karmine Corp</h3>
+              <h3 className="font-bold text-white">{matchData.teamA.name}</h3>
             </button>
 
             <div className="text-center px-6">
@@ -57,15 +167,16 @@ export const MatchDetails = () => {
             </div>
 
             <button
-              onClick={() => setSelectedTeam(selectedTeam === 'falcon' ? null : 'falcon')}
+              onClick={() => setSelectedTeam(selectedTeam === 'teamB' ? null : 'teamB')}
               className={`text-center transition-all duration-200 ${
-                selectedTeam === 'falcon' ? 'scale-110 opacity-100' : 'opacity-70 hover:opacity-90'
+                selectedTeam === 'teamB' ? 'scale-110 opacity-100' : 'opacity-70 hover:opacity-90'
               }`}
             >
-              <div className="w-20 h-20 bg-gaming-green rounded-full mx-auto mb-3 flex items-center justify-center border-4 border-transparent">
-                <span className="text-white font-bold text-xl">F</span>
+              <div className="w-20 h-20 rounded-full mx-auto mb-3 flex items-center justify-center border-4 border-transparent"
+                   style={{ backgroundColor: matchData.teamB.color }}>
+                <span className="text-white font-bold text-xl">{matchData.teamB.shortName}</span>
               </div>
-              <h3 className="font-bold text-white">Falcon</h3>
+              <h3 className="font-bold text-white">{matchData.teamB.name}</h3>
             </button>
           </div>
 
@@ -73,7 +184,7 @@ export const MatchDetails = () => {
           {selectedTeam && (
             <div className="text-center mb-6">
               <p className="text-white text-sm opacity-80">
-                Équipe sélectionnée: {selectedTeam === 'karmine' ? 'Karmine Corp' : 'Falcon'}
+                Équipe sélectionnée: {selectedTeam === 'teamA' ? matchData.teamA.name : matchData.teamB.name}
               </p>
             </div>
           )}
@@ -97,25 +208,81 @@ export const MatchDetails = () => {
                   Confirmer votre pronostic
                 </DialogTitle>
                 <DialogDescription>
-                  Vous êtes sur le point de parier sur <strong>{selectedTeam === 'karmine' ? 'Karmine Corp' : 'Team Falcons'}</strong> pour remporter ce match.
+                  Prédisez le vainqueur et le score final pour ce match {matchData.matchType.toUpperCase()}.
                 </DialogDescription>
               </DialogHeader>
-              <div className="flex items-center space-x-2 p-4 bg-accent/20 rounded-lg">
-                <div className={`w-8 h-8 ${selectedTeam === 'karmine' ? 'bg-gaming-blue' : 'bg-gaming-green'} rounded-full flex items-center justify-center`}>
-                  <span className="text-white font-bold text-sm">
-                    {selectedTeam === 'karmine' ? 'KC' : 'F'}
-                  </span>
+              
+              {/* Score Input Section */}
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2 p-4 bg-accent/20 rounded-lg">
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center" 
+                       style={{ backgroundColor: selectedTeam === 'teamA' ? matchData.teamA.color : matchData.teamB.color }}>
+                    <span className="text-white font-bold text-sm">
+                      {selectedTeam === 'teamA' ? matchData.teamA.shortName : matchData.teamB.shortName}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="font-semibold">{selectedTeam === 'teamA' ? matchData.teamA.name : matchData.teamB.name}</p>
+                    <p className="text-sm text-muted-foreground">{matchData.tournament} - {matchData.matchType.toUpperCase()}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="font-semibold">{selectedTeam === 'karmine' ? 'Karmine Corp' : 'Team Falcons'}</p>
-                  <p className="text-sm text-muted-foreground">RLCS M1 - 14 Sept 2024</p>
+
+                {/* Score Inputs */}
+                <div className="space-y-3">
+                  <Label className="text-sm font-medium">Score final prédit</Label>
+                  <div className="flex items-center gap-4">
+                    <div className="flex-1">
+                      <Label htmlFor="teamAScore" className="text-xs text-muted-foreground">{matchData.teamA.shortName}</Label>
+                      <Input
+                        id="teamAScore"
+                        type="number"
+                        min="0"
+                        max={matchData.matchType === 'bo5' ? '3' : '4'}
+                        value={teamAScore}
+                        onChange={(e) => handleScoreChange('A', e.target.value)}
+                        className="text-center"
+                      />
+                    </div>
+                    <span className="text-muted-foreground font-bold">-</span>
+                    <div className="flex-1">
+                      <Label htmlFor="teamBScore" className="text-xs text-muted-foreground">{matchData.teamB.shortName}</Label>
+                      <Input
+                        id="teamBScore"
+                        type="number"
+                        min="0"
+                        max={matchData.matchType === 'bo5' ? '3' : '4'}
+                        value={teamBScore}
+                        onChange={(e) => handleScoreChange('B', e.target.value)}
+                        className="text-center"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {matchData.matchType === 'bo5' ? 'Premier à 3 victoires' : 'Premier à 4 victoires'}
+                  </p>
                 </div>
+
+                {/* Score Validation Errors */}
+                {scoreErrors.length > 0 && (
+                  <div className="space-y-2">
+                    {scoreErrors.map((error, index) => (
+                      <div key={index} className="flex items-center gap-2 text-destructive text-sm">
+                        <AlertCircle className="w-4 h-4" />
+                        <span>{error}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsConfirmDialogOpen(false)}>
                   Annuler
                 </Button>
-                <Button onClick={handlePredictionSubmit} className="btn-gaming-primary">
+                <Button 
+                  onClick={handlePredictionSubmit} 
+                  className="btn-gaming-primary"
+                  disabled={scoreErrors.length > 0 || !selectedTeam}
+                >
                   Confirmer le prono
                 </Button>
               </DialogFooter>
@@ -148,24 +315,28 @@ export const MatchDetails = () => {
               </div>
               <DialogTitle className="text-green-500">Prono validé chef !</DialogTitle>
               <DialogDescription>
-                Votre pronostic sur <strong>{selectedTeam === 'karmine' ? 'Karmine Corp' : 'Team Falcons'}</strong> a été enregistré avec succès.
+                Votre pronostic sur <strong>{selectedTeam === 'teamA' ? matchData.teamA.name : matchData.teamB.name}</strong> a été enregistré avec succès.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
-              <div className="bg-accent/20 p-4 rounded-lg">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Match</span>
-                  <span className="font-medium">Karmine Corp vs Team Falcons</span>
+                <div className="bg-accent/20 p-4 rounded-lg">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Match</span>
+                    <span className="font-medium">{matchData.teamA.name} vs {matchData.teamB.name}</span>
+                  </div>
+                  <div className="flex justify-between items-center mt-2">
+                    <span className="text-sm text-muted-foreground">Votre prono</span>
+                    <span className="font-medium text-primary">{selectedTeam === 'teamA' ? matchData.teamA.name : matchData.teamB.name}</span>
+                  </div>
+                  <div className="flex justify-between items-center mt-2">
+                    <span className="text-sm text-muted-foreground">Score prédit</span>
+                    <span className="font-bold text-gaming-gold">{teamAScore} - {teamBScore}</span>
+                  </div>
+                  <div className="flex justify-between items-center mt-2">
+                    <span className="text-sm text-muted-foreground">Points potentiels</span>
+                    <span className="font-bold text-gaming-gold">+150 pts</span>
+                  </div>
                 </div>
-                <div className="flex justify-between items-center mt-2">
-                  <span className="text-sm text-muted-foreground">Votre prono</span>
-                  <span className="font-medium text-primary">{selectedTeam === 'karmine' ? 'Karmine Corp' : 'Team Falcons'}</span>
-                </div>
-                <div className="flex justify-between items-center mt-2">
-                  <span className="text-sm text-muted-foreground">Points potentiels</span>
-                  <span className="font-bold text-gaming-gold">+150 pts</span>
-                </div>
-              </div>
             </div>
             <DialogFooter>
               <Button onClick={() => setIsSuccessDialogOpen(false)} className="w-full btn-gaming-primary">
