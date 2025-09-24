@@ -1,8 +1,15 @@
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Clock, MapPin } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 export const Matches = () => {
+  const navigate = useNavigate();
+
+  const handleMakePrediction = () => {
+    navigate('/match/1'); // Navigate to match details page
+  };
+
   return (
     <div className="min-h-screen bg-black">
       {/* Header */}
@@ -55,7 +62,7 @@ export const Matches = () => {
             </div>
 
             {/* Bet Button */}
-            <Button className="btn-gaming-primary w-full">
+            <Button className="btn-gaming-primary w-full" onClick={handleMakePrediction}>
               Faire un prono
             </Button>
           </div>
