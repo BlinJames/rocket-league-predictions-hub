@@ -4,7 +4,7 @@ import { Clock, MapPin } from 'lucide-react';
 
 export const Matches = () => {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-black">
       {/* Header */}
       <header className="p-4 border-b border-border">
         <div className="flex justify-between items-center">

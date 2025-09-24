@@ -19,7 +19,7 @@ export const Leaderboard = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-hero">
+    <div className="min-h-screen bg-black">
       {/* Header */}
       <header className="p-4 border-b border-border">
         <div className="flex justify-between items-center">

@@ -5,7 +5,7 @@ export const MatchDetails = () => {
   const [selectedTeam, setSelectedTeam] = useState<'karmine' | 'falcon' | null>(null);
 
   return (
-    <div className="min-h-screen bg-gradient-hero relative overflow-hidden">
+    <div className="min-h-screen bg-black relative overflow-hidden">
       {/* Decorative Background */}
       <div className="absolute inset-0 opacity-20">
         <div className="w-full h-full bg-gradient-to-br from-gaming-blue via-transparent to-gaming-green"></div>

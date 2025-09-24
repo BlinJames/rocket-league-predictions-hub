@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 
 export const Profile = () => {
   return (
-    <div className="min-h-screen bg-gradient-hero">
+    <div className="min-h-screen bg-black">
       {/* Header */}
       <header className="flex justify-between items-center p-4 border-b border-border">
         <div className="flex items-center gap-3">
