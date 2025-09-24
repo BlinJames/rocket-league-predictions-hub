@@ -1,8 +1,23 @@
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { useToast } from '@/hooks/use-toast';
 import { useState } from 'react';
+import { CheckCircle, Trophy } from 'lucide-react';
 
 export const MatchDetails = () => {
   const [selectedTeam, setSelectedTeam] = useState<'karmine' | 'falcon' | null>(null);
+  const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
+  const [isSuccessDialogOpen, setIsSuccessDialogOpen] = useState(false);
+  const { toast } = useToast();
+
+  const handlePredictionSubmit = () => {
+    setIsConfirmDialogOpen(false);
+    setIsSuccessDialogOpen(true);
+    toast({
+      title: "Pronostic enregistré !",
+      description: `Vous avez parié sur ${selectedTeam === 'karmine' ? 'Karmine Corp' : 'Team Falcons'}`,
+    });
+  };
 
   return (
     <div className="min-h-screen bg-black relative overflow-hidden">
@@ -64,14 +79,48 @@ export const MatchDetails = () => {
           )}
 
           {/* Bet Button */}
-          <Button 
-            className={`btn-gaming-primary w-full transition-all duration-200 ${
-              selectedTeam ? 'opacity-100 scale-100' : 'opacity-50 scale-95'
-            }`}
-            disabled={!selectedTeam}
-          >
-            Faire un prono
-          </Button>
+          <Dialog open={isConfirmDialogOpen} onOpenChange={setIsConfirmDialogOpen}>
+            <DialogTrigger asChild>
+              <Button 
+                className={`btn-gaming-primary w-full transition-all duration-200 ${
+                  selectedTeam ? 'opacity-100 scale-100' : 'opacity-50 scale-95'
+                }`}
+                disabled={!selectedTeam}
+              >
+                Faire un prono
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md bg-card border-border">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Trophy className="w-5 h-5 text-primary" />
+                  Confirmer votre pronostic
+                </DialogTitle>
+                <DialogDescription>
+                  Vous êtes sur le point de parier sur <strong>{selectedTeam === 'karmine' ? 'Karmine Corp' : 'Team Falcons'}</strong> pour remporter ce match.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex items-center space-x-2 p-4 bg-accent/20 rounded-lg">
+                <div className={`w-8 h-8 ${selectedTeam === 'karmine' ? 'bg-gaming-blue' : 'bg-gaming-green'} rounded-full flex items-center justify-center`}>
+                  <span className="text-white font-bold text-sm">
+                    {selectedTeam === 'karmine' ? 'KC' : 'F'}
+                  </span>
+                </div>
+                <div>
+                  <p className="font-semibold">{selectedTeam === 'karmine' ? 'Karmine Corp' : 'Team Falcons'}</p>
+                  <p className="text-sm text-muted-foreground">RLCS M1 - 14 Sept 2024</p>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsConfirmDialogOpen(false)}>
+                  Annuler
+                </Button>
+                <Button onClick={handlePredictionSubmit} className="btn-gaming-primary">
+                  Confirmer le prono
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
 
         {/* Match Stats */}
@@ -90,25 +139,41 @@ export const MatchDetails = () => {
           </div>
         </div>
 
-        {/* Validate Prediction Button */}
-        <div className="px-4 mt-6">
-          <Button 
-            className="btn-gaming-primary w-full"
-            disabled={!selectedTeam}
-          >
-            Valider mon prono
-          </Button>
-        </div>
-
-        {/* Success Message */}
-        <div className="px-4 mt-8">
-          <div className="bg-green-500/20 border border-green-500/30 rounded-xl p-4 text-center">
-            <h3 className="text-white font-bold mb-2">Prono validé chef !</h3>
-            <p className="text-green-400 text-sm">
-              Votre pronostic a été enregistré avec succès
-            </p>
-          </div>
-        </div>
+        {/* Validate Prediction Dialog */}
+        <Dialog open={isSuccessDialogOpen} onOpenChange={setIsSuccessDialogOpen}>
+          <DialogContent className="sm:max-w-md bg-card border-border">
+            <DialogHeader className="text-center">
+              <div className="mx-auto w-12 h-12 bg-green-500/20 rounded-full flex items-center justify-center mb-4">
+                <CheckCircle className="w-6 h-6 text-green-500" />
+              </div>
+              <DialogTitle className="text-green-500">Prono validé chef !</DialogTitle>
+              <DialogDescription>
+                Votre pronostic sur <strong>{selectedTeam === 'karmine' ? 'Karmine Corp' : 'Team Falcons'}</strong> a été enregistré avec succès.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="bg-accent/20 p-4 rounded-lg">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Match</span>
+                  <span className="font-medium">Karmine Corp vs Team Falcons</span>
+                </div>
+                <div className="flex justify-between items-center mt-2">
+                  <span className="text-sm text-muted-foreground">Votre prono</span>
+                  <span className="font-medium text-primary">{selectedTeam === 'karmine' ? 'Karmine Corp' : 'Team Falcons'}</span>
+                </div>
+                <div className="flex justify-between items-center mt-2">
+                  <span className="text-sm text-muted-foreground">Points potentiels</span>
+                  <span className="font-bold text-gaming-gold">+150 pts</span>
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button onClick={() => setIsSuccessDialogOpen(false)} className="w-full btn-gaming-primary">
+                Super !
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
