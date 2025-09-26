@@ -13,6 +13,13 @@ interface League {
   status: string;
 }
 
+interface Team {
+  id: string;
+  name: string;
+  short_name: string;
+  color: string;
+}
+
 interface Match {
   id: string;
   scheduled_at: string;
@@ -21,6 +28,8 @@ interface Match {
   match_type: string;
   stage: string;
   status: string;
+  team_a?: Team;
+  team_b?: Team;
 }
 
 export const Matches = () => {
@@ -30,8 +39,8 @@ export const Matches = () => {
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const handleMakePrediction = () => {
-    navigate('/match/1'); // Navigate to match details page
+  const handleMakePrediction = (matchId: string) => {
+    navigate(`/match/${matchId}`);
   };
 
   useEffect(() => {
@@ -76,7 +85,9 @@ export const Matches = () => {
           match_type,
           stage,
           status,
-          tournaments!inner(league_id)
+          tournaments!inner(league_id),
+          team_a:teams!team_a_id(id, name, short_name, color),
+          team_b:teams!team_b_id(id, name, short_name, color)
         `)
         .eq('tournaments.league_id', leagueId)
         .order('scheduled_at');
@@ -165,10 +176,15 @@ export const Matches = () => {
                   {/* Teams */}
                   <div className="flex items-center justify-between mb-6">
                     <div className="text-center">
-                      <div className="w-16 h-16 bg-gaming-blue rounded-full mx-auto mb-2 flex items-center justify-center">
-                        <span className="text-white font-bold text-lg">KC</span>
+                      <div 
+                        className="w-16 h-16 rounded-full mx-auto mb-2 flex items-center justify-center"
+                        style={{ backgroundColor: matches[0].team_a?.color || '#1e90ff' }}
+                      >
+                        <span className="text-white font-bold text-lg">
+                          {matches[0].team_a?.short_name || 'T1'}
+                        </span>
                       </div>
-                      <h3 className="font-bold text-sm">Karmine Corp</h3>
+                      <h3 className="font-bold text-sm">{matches[0].team_a?.name || 'Team 1'}</h3>
                     </div>
 
                     <div className="text-center px-4">
@@ -176,15 +192,20 @@ export const Matches = () => {
                     </div>
 
                     <div className="text-center">
-                      <div className="w-16 h-16 bg-gaming-green rounded-full mx-auto mb-2 flex items-center justify-center">
-                        <span className="text-white font-bold text-lg">F</span>
+                      <div 
+                        className="w-16 h-16 rounded-full mx-auto mb-2 flex items-center justify-center"
+                        style={{ backgroundColor: matches[0].team_b?.color || '#32cd32' }}
+                      >
+                        <span className="text-white font-bold text-lg">
+                          {matches[0].team_b?.short_name || 'T2'}
+                        </span>
                       </div>
-                      <h3 className="font-bold text-sm">Falcon</h3>
+                      <h3 className="font-bold text-sm">{matches[0].team_b?.name || 'Team 2'}</h3>
                     </div>
                   </div>
 
                   {/* Bet Button */}
-                  <Button className="btn-gaming-primary w-full" onClick={handleMakePrediction}>
+                  <Button className="btn-gaming-primary w-full" onClick={() => handleMakePrediction(matches[0].id)}>
                     Faire un prono
                   </Button>
                 </div>
@@ -200,13 +221,25 @@ export const Matches = () => {
                     <div key={match.id} className="card-gaming">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-sm font-medium flex items-center gap-2">
-                          <span className="w-6 h-6 bg-yellow-500 rounded text-xs flex items-center justify-center font-bold text-black">
-                            VS
-                          </span>
-                          Match {match.stage || 'TBD'}
+                          <div className="flex items-center gap-1">
+                            <span 
+                              className="w-5 h-5 rounded text-xs flex items-center justify-center font-bold text-white"
+                              style={{ backgroundColor: match.team_a?.color || '#1e90ff' }}
+                            >
+                              {match.team_a?.short_name?.charAt(0) || 'T'}
+                            </span>
+                            <span>vs</span>
+                            <span 
+                              className="w-5 h-5 rounded text-xs flex items-center justify-center font-bold text-white"
+                              style={{ backgroundColor: match.team_b?.color || '#32cd32' }}
+                            >
+                              {match.team_b?.short_name?.charAt(0) || 'T'}
+                            </span>
+                          </div>
+                          {match.team_a?.short_name || 'T1'} vs {match.team_b?.short_name || 'T2'}
                         </span>
                         <Badge variant="outline" className="text-xs">
-                          {match.match_type?.toUpperCase()}
+                          {match.stage}
                         </Badge>
                       </div>
                       <p className="text-xs text-muted-foreground">
@@ -215,7 +248,7 @@ export const Matches = () => {
                           month: 'short',
                           hour: '2-digit',
                           minute: '2-digit'
-                        })}
+                        })} - {match.match_type?.toUpperCase()}
                       </p>
                     </div>
                   ))}
