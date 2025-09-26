@@ -5,8 +5,10 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { CheckCircle, Trophy, AlertCircle } from 'lucide-react';
 import { z } from 'zod';
+import { supabase } from '@/integrations/supabase/client';
 
 // Schema de validation pour les scores
 const scoreSchema = z.object({
@@ -25,9 +27,11 @@ interface MatchData {
   matchType: 'bo5' | 'bo7';
   scheduledAt: string;
   tournament: string;
+  stage: string;
 }
 
 export const MatchDetails = () => {
+  const { id } = useParams<{ id: string }>();
   const [selectedTeam, setSelectedTeam] = useState<'teamA' | 'teamB' | null>(null);
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const [isSuccessDialogOpen, setIsSuccessDialogOpen] = useState(false);
@@ -35,20 +39,64 @@ export const MatchDetails = () => {
   const [teamBScore, setTeamBScore] = useState<number>(0);
   const [scoreErrors, setScoreErrors] = useState<string[]>([]);
   const [matchData, setMatchData] = useState<MatchData | null>(null);
+  const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
-  // Simuler les données du match (à remplacer par un appel Supabase)
+  // Récupérer les données du match depuis Supabase
   useEffect(() => {
-    // TODO: Récupérer depuis Supabase avec l'ID du match
-    setMatchData({
-      id: '1',
-      teamA: { name: 'Karmine Corp', shortName: 'KC', color: '#1e90ff' },
-      teamB: { name: 'Team Falcons', shortName: 'F', color: '#32cd32' },
-      matchType: 'bo5', // ou 'bo7'
-      scheduledAt: '2024-09-14T20:00:00Z',
-      tournament: 'RLCS M1'
-    });
-  }, []);
+    if (!id) return;
+    
+    const fetchMatchData = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('matches')
+          .select(`
+            id,
+            scheduled_at,
+            match_type,
+            stage,
+            tournaments!inner(name, leagues!inner(short_name)),
+            team_a:teams!team_a_id(name, short_name, color),
+            team_b:teams!team_b_id(name, short_name, color)
+          `)
+          .eq('id', id)
+          .single();
+
+        if (error) throw error;
+
+        if (data) {
+          setMatchData({
+            id: data.id,
+            teamA: {
+              name: data.team_a?.name || 'Team A',
+              shortName: data.team_a?.short_name || 'TA',
+              color: data.team_a?.color || '#1e90ff'
+            },
+            teamB: {
+              name: data.team_b?.name || 'Team B',
+              shortName: data.team_b?.short_name || 'TB',
+              color: data.team_b?.color || '#32cd32'
+            },
+            matchType: data.match_type as 'bo5' | 'bo7',
+            scheduledAt: data.scheduled_at,
+            tournament: data.tournaments?.leagues?.short_name || 'Tournament',
+            stage: data.stage || 'Match'
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching match data:', error);
+        toast({
+          title: "Erreur",
+          description: "Impossible de charger les données du match",
+          variant: "destructive"
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchMatchData();
+  }, [id, toast]);
 
   const validateScore = (scoreA: number, scoreB: number): string[] => {
     const errors: string[] = [];
@@ -116,8 +164,25 @@ export const MatchDetails = () => {
     });
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Chargement du match...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!matchData) {
-    return <div className="min-h-screen bg-black flex items-center justify-center text-white">Chargement...</div>;
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-muted-foreground">Match non trouvé</p>
+        </div>
+      </div>
+    );
   }
 
   return (

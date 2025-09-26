@@ -278,7 +278,7 @@ export const League = () => {
 
         {/* All Predictions Button */}
         <div className="mt-6">
-          <Button variant="outline" className="w-full">
+          <Button variant="outline" className="w-full" onClick={() => navigate('/predictions')}>
             Voir toutes mes pronos
           </Button>
         </div>

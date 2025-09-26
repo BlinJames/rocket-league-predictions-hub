@@ -9,6 +9,7 @@ import { Profile } from "./pages/Profile";
 import { Leaderboard } from "./pages/Leaderboard";
 import { League } from "./pages/League";
 import { MatchDetails } from "./pages/MatchDetails";
+import { Predictions } from "./pages/Predictions";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,6 +29,7 @@ const App = () => {
               <Route path="/classement" element={<Leaderboard />} />
               <Route path="/leagues" element={<League />} />
               <Route path="/match/:id" element={<MatchDetails />} />
+              <Route path="/predictions" element={<Predictions />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
