@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Clock, MapPin } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -32,12 +32,17 @@ interface Match {
   team_b?: Team;
 }
 
-export const Matches = () => {
+export const League = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [leagues, setLeagues] = useState<League[]>([]);
   const [selectedLeague, setSelectedLeague] = useState<string>('');
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Get league from query params
+  const searchParams = new URLSearchParams(location.search);
+  const leagueFromQuery = searchParams.get('league');
 
   const handleMakePrediction = (matchId: string) => {
     navigate(`/match/${matchId}`);
@@ -52,6 +57,15 @@ export const Matches = () => {
       fetchMatchesForLeague(selectedLeague);
     }
   }, [selectedLeague]);
+
+  // Set league from query param when leagues are loaded
+  useEffect(() => {
+    if (leagueFromQuery && leagues.length > 0) {
+      setSelectedLeague(leagueFromQuery);
+    } else if (leagues.length > 0 && !selectedLeague) {
+      setSelectedLeague(leagues[0].id);
+    }
+  }, [leagues, leagueFromQuery]);
 
   const fetchLeagues = async () => {
     try {
@@ -116,7 +130,7 @@ export const Matches = () => {
       {/* Header */}
       <header className="p-4 border-b border-border">
         <div className="flex justify-between items-center">
-          <h1 className="text-xl font-bold">Matches</h1>
+          <h1 className="text-xl font-bold">Leagues</h1>
           {selectedLeague && (
             <Badge variant="secondary" className="text-xs">
               {leagues.find(l => l.id === selectedLeague)?.short_name}

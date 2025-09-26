@@ -7,7 +7,7 @@ import { MobileLayout } from "./components/Layout/MobileLayout";
 import { Home } from "./pages/Home";
 import { Profile } from "./pages/Profile";
 import { Leaderboard } from "./pages/Leaderboard";
-import { Matches } from "./pages/Matches";
+import { League } from "./pages/League";
 import { MatchDetails } from "./pages/MatchDetails";
 import NotFound from "./pages/NotFound";
 
@@ -26,7 +26,7 @@ const App = () => {
               <Route path="/" element={<Home />} />
               <Route path="/profil" element={<Profile />} />
               <Route path="/classement" element={<Leaderboard />} />
-              <Route path="/matches" element={<Matches />} />
+              <Route path="/leagues" element={<League />} />
               <Route path="/match/:id" element={<MatchDetails />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
