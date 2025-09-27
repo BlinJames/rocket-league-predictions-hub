@@ -14,6 +14,7 @@ export const Profile = () => {
   const navigate = useNavigate();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [selectedPrediction, setSelectedPrediction] = useState<any>(null);
+  const [selectedReward, setSelectedReward] = useState<any>(null);
   const [leagues, setLeagues] = useState<any[]>([]);
   const [profile, setProfile] = useState({
     displayName: 'Julien D.',
@@ -55,6 +56,36 @@ export const Profile = () => {
     }
   ];
 
+  const rewards = [
+    {
+      id: 1,
+      name: "Premier pas",
+      description: "Faire votre premier pronostic",
+      icon: "🎯",
+      gradient: "from-red-500 to-orange-500",
+      requirement: "Effectuer 1 pronostic",
+      dateEarned: "15 Sept 2024"
+    },
+    {
+      id: 2,
+      name: "Série en or",
+      description: "Réaliser 5 pronostics corrects consécutifs",
+      icon: "⭐",
+      gradient: "from-orange-500 to-yellow-500",
+      requirement: "5 pronostics corrects d'affilée",
+      dateEarned: "22 Sept 2024"
+    },
+    {
+      id: 3,
+      name: "Top 10 ligue",
+      description: "Finir dans le top 10 d'une ligue",
+      icon: "👑",
+      gradient: "from-purple-500 to-pink-500",
+      requirement: "Classement top 10 en fin de ligue",
+      dateEarned: "25 Sept 2024"
+    }
+  ];
+
   useEffect(() => {
     fetchLeagues();
   }, []);
@@ -74,7 +105,7 @@ export const Profile = () => {
   };
 
   const handleLeagueClick = (leagueId: string) => {
-    navigate(`/league?league=${leagueId}`);
+    navigate(`/leagues?league=${leagueId}`);
   };
 
   const getLeagueStatus = (league: any) => {
@@ -310,7 +341,7 @@ export const Profile = () => {
         <Button 
           variant="outline" 
           className="w-full"
-          onClick={() => navigate('/league')}
+          onClick={() => navigate('/leagues')}
         >
           Voir toutes mes ligues
         </Button>
@@ -321,24 +352,44 @@ export const Profile = () => {
         <h2 className="font-semibold mb-4">Mes Récompenses</h2>
         
         <div className="grid grid-cols-3 gap-4">
-          <div className="text-center">
-            <div className="w-12 h-12 bg-gradient-to-r from-red-500 to-orange-500 rounded-full mx-auto mb-2 flex items-center justify-center">
-              <span className="text-white text-xl">🎯</span>
-            </div>
-            <p className="text-xs">Premier pas</p>
-          </div>
-          <div className="text-center">
-            <div className="w-12 h-12 bg-gradient-to-r from-orange-500 to-yellow-500 rounded-full mx-auto mb-2 flex items-center justify-center">
-              <span className="text-white text-xl">⭐</span>
-            </div>
-            <p className="text-xs">Série en or</p>
-          </div>
-          <div className="text-center">
-            <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full mx-auto mb-2 flex items-center justify-center">
-              <span className="text-white text-xl">👑</span>
-            </div>
-            <p className="text-xs">Top 10 ligue</p>
-          </div>
+          {rewards.map((reward) => (
+            <Dialog key={reward.id}>
+              <DialogTrigger asChild>
+                <div className="text-center cursor-pointer hover:scale-105 transition-transform">
+                  <div className={`w-12 h-12 bg-gradient-to-r ${reward.gradient} rounded-full mx-auto mb-2 flex items-center justify-center`}>
+                    <span className="text-white text-xl">{reward.icon}</span>
+                  </div>
+                  <p className="text-xs">{reward.name}</p>
+                </div>
+              </DialogTrigger>
+              <DialogContent className="card-gaming">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-3">
+                    <div className={`w-10 h-10 bg-gradient-to-r ${reward.gradient} rounded-full flex items-center justify-center`}>
+                      <span className="text-white text-lg">{reward.icon}</span>
+                    </div>
+                    {reward.name}
+                  </DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="font-medium mb-2">Description</h4>
+                    <p className="text-sm text-muted-foreground">{reward.description}</p>
+                  </div>
+                  
+                  <div>
+                    <h4 className="font-medium mb-2">Comment l'obtenir</h4>
+                    <p className="text-sm text-muted-foreground">{reward.requirement}</p>
+                  </div>
+                  
+                  <div>
+                    <h4 className="font-medium mb-2">Obtenu le</h4>
+                    <p className="text-sm text-primary font-medium">{reward.dateEarned}</p>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+          ))}
         </div>
       </div>
     </div>
