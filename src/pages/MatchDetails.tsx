@@ -22,12 +22,21 @@ const scoreSchema = z.object({
 // Type pour les données du match
 interface MatchData {
   id: string;
-  teamA: { name: string; shortName: string; color: string };
-  teamB: { name: string; shortName: string; color: string };
+  teamA: { id: string; name: string; shortName: string; color: string };
+  teamB: { id: string; name: string; shortName: string; color: string };
   matchType: 'bo5' | 'bo7';
   scheduledAt: string;
   tournament: string;
   stage: string;
+}
+
+// Type pour un pronostic existant
+interface ExistingPrediction {
+  id: string;
+  predicted_winner_id: string;
+  predicted_score_a: number;
+  predicted_score_b: number;
+  created_at: string;
 }
 
 export const MatchDetails = () => {
@@ -40,6 +49,8 @@ export const MatchDetails = () => {
   const [scoreErrors, setScoreErrors] = useState<string[]>([]);
   const [matchData, setMatchData] = useState<MatchData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [existingPrediction, setExistingPrediction] = useState<ExistingPrediction | null>(null);
+  const [canModifyPrediction, setCanModifyPrediction] = useState(true);
   const { toast } = useToast();
 
   // Récupérer les données du match depuis Supabase
@@ -55,9 +66,11 @@ export const MatchDetails = () => {
             scheduled_at,
             match_type,
             stage,
+            team_a_id,
+            team_b_id,
             tournaments!inner(name, leagues!inner(short_name)),
-            team_a:teams!team_a_id(name, short_name, color),
-            team_b:teams!team_b_id(name, short_name, color)
+            team_a:teams!team_a_id(id, name, short_name, color),
+            team_b:teams!team_b_id(id, name, short_name, color)
           `)
           .eq('id', id)
           .single();
@@ -65,14 +78,16 @@ export const MatchDetails = () => {
         if (error) throw error;
 
         if (data) {
-          setMatchData({
+          const matchInfo = {
             id: data.id,
             teamA: {
+              id: data.team_a_id,
               name: data.team_a?.name || 'Team A',
               shortName: data.team_a?.short_name || 'TA',
               color: data.team_a?.color || '#1e90ff'
             },
             teamB: {
+              id: data.team_b_id,
               name: data.team_b?.name || 'Team B',
               shortName: data.team_b?.short_name || 'TB',
               color: data.team_b?.color || '#32cd32'
@@ -81,7 +96,14 @@ export const MatchDetails = () => {
             scheduledAt: data.scheduled_at,
             tournament: data.tournaments?.leagues?.short_name || 'Tournament',
             stage: data.stage || 'Match'
-          });
+          };
+          setMatchData(matchInfo);
+
+          // Vérifier s'il y a déjà un pronostic pour ce match
+          await checkExistingPrediction(data.id, matchInfo);
+          
+          // Vérifier si on peut encore modifier le pronostic
+          checkModificationTime(data.scheduled_at);
         }
       } catch (error) {
         console.error('Error fetching match data:', error);
@@ -97,6 +119,45 @@ export const MatchDetails = () => {
 
     fetchMatchData();
   }, [id, toast]);
+
+  const checkExistingPrediction = async (matchId: string, matchInfo: MatchData) => {
+    try {
+      // TODO: Remplacer par l'ID utilisateur réel quand l'auth sera implémentée
+      const userId = 'temp-user-id';
+      
+      const { data } = await supabase
+        .from('predictions')
+        .select('id, predicted_winner_id, predicted_score_a, predicted_score_b, created_at')
+        .eq('user_id', userId)
+        .eq('match_id', matchId)
+        .single();
+
+      if (data) {
+        setExistingPrediction(data);
+        // Pré-remplir les champs avec le pronostic existant
+        setTeamAScore(data.predicted_score_a || 0);
+        setTeamBScore(data.predicted_score_b || 0);
+        // Déterminer quelle équipe était sélectionnée
+        if (matchInfo.teamA.id === data.predicted_winner_id) {
+          setSelectedTeam('teamA');
+        } else if (matchInfo.teamB.id === data.predicted_winner_id) {
+          setSelectedTeam('teamB');
+        }
+      }
+    } catch (error) {
+      // Pas de pronostic existant, c'est normal
+      console.log('No existing prediction found');
+    }
+  };
+
+  const checkModificationTime = (scheduledAt: string) => {
+    const matchTime = new Date(scheduledAt);
+    const now = new Date();
+    const timeUntilMatch = matchTime.getTime() - now.getTime();
+    const fiveMinutes = 5 * 60 * 1000; // 5 minutes en millisecondes
+
+    setCanModifyPrediction(timeUntilMatch >= fiveMinutes);
+  };
 
   const validateScore = (scoreA: number, scoreB: number): string[] => {
     const errors: string[] = [];
@@ -145,7 +206,7 @@ export const MatchDetails = () => {
     }
   };
 
-  const handlePredictionSubmit = () => {
+  const handlePredictionSubmit = async () => {
     if (!matchData || !selectedTeam) return;
     
     const errors = validateScore(teamAScore, teamBScore);
@@ -153,15 +214,82 @@ export const MatchDetails = () => {
       setScoreErrors(errors);
       return;
     }
-    
-    setIsConfirmDialogOpen(false);
-    setIsSuccessDialogOpen(true);
-    
-    const winnerName = selectedTeam === 'teamA' ? matchData.teamA.name : matchData.teamB.name;
-    toast({
-      title: "Pronostic enregistré !",
-      description: `Vous avez parié sur ${winnerName} avec le score ${teamAScore}-${teamBScore}`,
-    });
+
+    try {
+      // TODO: Remplacer par l'ID utilisateur réel quand l'auth sera implémentée
+      const userId = 'temp-user-id';
+      const winnerId = selectedTeam === 'teamA' ? matchData.teamA.id : matchData.teamB.id;
+      
+      // Vérifier si un pronostic existe déjà pour ce match
+      const { data: existingPrediction } = await supabase
+        .from('predictions')
+        .select('id, created_at')
+        .eq('user_id', userId)
+        .eq('match_id', matchData.id)
+        .single();
+
+      // Vérifier si on peut encore modifier (5 minutes avant le match)
+      const matchTime = new Date(matchData.scheduledAt);
+      const now = new Date();
+      const timeUntilMatch = matchTime.getTime() - now.getTime();
+      const fiveMinutes = 5 * 60 * 1000; // 5 minutes en millisecondes
+
+      if (timeUntilMatch < fiveMinutes) {
+        toast({
+          title: "Trop tard !",
+          description: "Vous ne pouvez plus modifier votre pronostic moins de 5 minutes avant le match.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const predictionData = {
+        user_id: userId,
+        match_id: matchData.id,
+        predicted_winner_id: winnerId,
+        predicted_score_a: teamAScore,
+        predicted_score_b: teamBScore,
+        confidence_level: 1 // Niveau de confiance par défaut
+      };
+
+      if (existingPrediction) {
+        // Mettre à jour le pronostic existant
+        const { error } = await supabase
+          .from('predictions')
+          .update(predictionData)
+          .eq('id', existingPrediction.id);
+
+        if (error) throw error;
+
+        toast({
+          title: "Pronostic modifié !",
+          description: `Votre pronostic a été mis à jour avec succès.`,
+        });
+      } else {
+        // Créer un nouveau pronostic
+        const { error } = await supabase
+          .from('predictions')
+          .insert(predictionData);
+
+        if (error) throw error;
+
+        toast({
+          title: "Pronostic enregistré !",
+          description: `Vous avez parié sur ${selectedTeam === 'teamA' ? matchData.teamA.name : matchData.teamB.name}`,
+        });
+      }
+
+      setIsConfirmDialogOpen(false);
+      setIsSuccessDialogOpen(true);
+      
+    } catch (error) {
+      console.error('Error saving prediction:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible d'enregistrer votre pronostic. Veuillez réessayer.",
+        variant: "destructive"
+      });
+    }
   };
 
   if (loading) {
@@ -259,21 +387,27 @@ export const MatchDetails = () => {
             <DialogTrigger asChild>
               <Button 
                 className={`btn-gaming-primary w-full transition-all duration-200 ${
-                  selectedTeam ? 'opacity-100 scale-100' : 'opacity-50 scale-95'
+                  selectedTeam && canModifyPrediction ? 'opacity-100 scale-100' : 'opacity-50 scale-95'
                 }`}
-                disabled={!selectedTeam}
+                disabled={!selectedTeam || !canModifyPrediction}
               >
-                Faire un prono
+                {existingPrediction ? 'Modifier mon prono' : 'Faire un prono'}
+                {!canModifyPrediction && (
+                  <span className="block text-xs mt-1">Trop tard pour modifier</span>
+                )}
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-md bg-card border-border">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   <Trophy className="w-5 h-5 text-primary" />
-                  Confirmer votre pronostic
+                  {existingPrediction ? 'Modifier votre pronostic' : 'Confirmer votre pronostic'}
                 </DialogTitle>
                 <DialogDescription>
-                  Prédisez le vainqueur et le score final pour ce match {matchData.matchType.toUpperCase()}.
+                  {existingPrediction 
+                    ? 'Vous pouvez modifier votre pronostic jusqu\'à 5 minutes avant le match.'
+                    : `Prédisez le vainqueur et le score final pour ce match ${matchData.matchType.toUpperCase()}.`
+                  }
                 </DialogDescription>
               </DialogHeader>
               
@@ -348,7 +482,7 @@ export const MatchDetails = () => {
                   className="btn-gaming-primary"
                   disabled={scoreErrors.length > 0 || !selectedTeam}
                 >
-                  Confirmer le prono
+                  {existingPrediction ? 'Modifier le prono' : 'Confirmer le prono'}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -378,9 +512,12 @@ export const MatchDetails = () => {
               <div className="mx-auto w-12 h-12 bg-green-500/20 rounded-full flex items-center justify-center mb-4">
                 <CheckCircle className="w-6 h-6 text-green-500" />
               </div>
-              <DialogTitle className="text-green-500">Prono validé chef !</DialogTitle>
+              <DialogTitle className="text-green-500">
+                {existingPrediction ? 'Prono modifié !' : 'Prono validé chef !'}
+              </DialogTitle>
               <DialogDescription>
-                Votre pronostic sur <strong>{selectedTeam === 'teamA' ? matchData.teamA.name : matchData.teamB.name}</strong> a été enregistré avec succès.
+                Votre pronostic sur <strong>{selectedTeam === 'teamA' ? matchData.teamA.name : matchData.teamB.name}</strong> 
+                {existingPrediction ? ' a été mis à jour' : ' a été enregistré'} avec succès.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
