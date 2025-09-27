@@ -123,7 +123,7 @@ export const MatchDetails = () => {
   const checkExistingPrediction = async (matchId: string, matchInfo: MatchData) => {
     try {
       // TODO: Remplacer par l'ID utilisateur réel quand l'auth sera implémentée
-      const userId = 'temp-user-id';
+      const userId = '00000000-0000-4000-8000-000000000000';
       
       const { data } = await supabase
         .from('predictions')
@@ -217,7 +217,7 @@ export const MatchDetails = () => {
 
     try {
       // TODO: Remplacer par l'ID utilisateur réel quand l'auth sera implémentée
-      const userId = 'temp-user-id';
+      const userId = '00000000-0000-4000-8000-000000000000';
       const winnerId = selectedTeam === 'teamA' ? matchData.teamA.id : matchData.teamB.id;
       
       // Vérifier si un pronostic existe déjà pour ce match
