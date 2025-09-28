@@ -2,9 +2,20 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Trophy, Target, Zap, Award } from 'lucide-react';
+import { useState } from 'react';
 
 export const Leaderboard = () => {
+  const [selectedLeague, setSelectedLeague] = useState('RLCS M1');
+  
+  const leagues = [
+    'RLCS M1',
+    'RLCS M2', 
+    'World Championship',
+    'Regional Championship'
+  ];
+
   const leaderboardData = [
     { 
       rank: 1, 
@@ -263,9 +274,18 @@ export const Leaderboard = () => {
       <header className="p-4 border-b border-border">
         <div className="flex justify-between items-center">
           <h1 className="text-xl font-bold">Classement</h1>
-          <Badge variant="secondary" className="text-xs">
-            RLCS M1
-          </Badge>
+          <Select value={selectedLeague} onValueChange={setSelectedLeague}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {leagues.map((league) => (
+                <SelectItem key={league} value={league}>
+                  {league}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </header>
 
@@ -273,31 +293,322 @@ export const Leaderboard = () => {
       <div className="px-4 py-6">
         <div className="flex items-end justify-center gap-4 mb-6">
           {/* 2nd Place */}
-          <div className="text-center">
-            <Avatar className="w-12 h-12 mx-auto mb-2 border-2 border-gray-400">
-              <AvatarFallback className="bg-secondary font-bold">J</AvatarFallback>
-            </Avatar>
-            <div className="bg-gray-400 text-black text-xs font-bold px-2 py-1 rounded">2</div>
-            <p className="text-xs mt-1">Julien D</p>
-          </div>
+          <Dialog>
+            <DialogTrigger asChild>
+              <div className="text-center cursor-pointer hover:opacity-80 transition-opacity">
+                <Avatar className="w-12 h-12 mx-auto mb-2 border-2 border-gray-400">
+                  <AvatarFallback className="bg-secondary font-bold">{leaderboardData[1]?.avatar}</AvatarFallback>
+                </Avatar>
+                <div className="bg-gray-400 text-black text-xs font-bold px-2 py-1 rounded">2</div>
+                <p className="text-xs mt-1">{leaderboardData[1]?.name}</p>
+              </div>
+            </DialogTrigger>
+            {leaderboardData[1] && (
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-3">
+                    <Avatar className="w-12 h-12">
+                      <AvatarFallback className="bg-primary text-primary-foreground font-bold">
+                        {leaderboardData[1].avatar}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <div className="font-bold">{leaderboardData[1].name}</div>
+                      <div className="text-sm text-muted-foreground">@{leaderboardData[1].username}</div>
+                    </div>
+                  </DialogTitle>
+                </DialogHeader>
+                
+                <div className="space-y-4">
+                  {/* Stats Cards */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <Card>
+                      <CardContent className="p-3 text-center">
+                        <Trophy className="w-5 h-5 mx-auto mb-1 text-primary" />
+                        <div className="text-lg font-bold">{leaderboardData[1].points}</div>
+                        <div className="text-xs text-muted-foreground">Points</div>
+                      </CardContent>
+                    </Card>
+                    
+                    <Card>
+                      <CardContent className="p-3 text-center">
+                        <Target className="w-5 h-5 mx-auto mb-1 text-green-500" />
+                        <div className="text-lg font-bold">{leaderboardData[1].correctPredictions}/{leaderboardData[1].totalPredictions}</div>
+                        <div className="text-xs text-muted-foreground">Réussis</div>
+                      </CardContent>
+                    </Card>
+                    
+                    <Card>
+                      <CardContent className="p-3 text-center">
+                        <Zap className="w-5 h-5 mx-auto mb-1 text-orange-500" />
+                        <div className="text-lg font-bold">{leaderboardData[1].winStreak}</div>
+                        <div className="text-xs text-muted-foreground">Série</div>
+                      </CardContent>
+                    </Card>
+                    
+                    <Card>
+                      <CardContent className="p-3 text-center">
+                        <Award className="w-5 h-5 mx-auto mb-1 text-purple-500" />
+                        <div className="text-lg font-bold">{leaderboardData[1].rewards.length}</div>
+                        <div className="text-xs text-muted-foreground">Récompenses</div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                  
+                  {/* Recent Matches */}
+                  {leaderboardData[1].recentMatches.length > 0 && (
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-sm">Matchs récents</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-2">
+                        {leaderboardData[1].recentMatches.map((match, idx) => (
+                          <div key={idx} className="flex items-center justify-between text-xs">
+                            <span className="flex-1">{match.opponent}</span>
+                            <span className="font-medium">{match.prediction}</span>
+                            <Badge 
+                              variant={match.result === 'correct' ? 'default' : 'destructive'}
+                              className="ml-2 text-xs"
+                            >
+                              {match.result === 'correct' ? '✓' : '✗'}
+                            </Badge>
+                          </div>
+                        ))}
+                      </CardContent>
+                    </Card>
+                  )}
+                  
+                  {/* Rewards */}
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm">Récompenses</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex flex-wrap gap-1">
+                        {leaderboardData[1].rewards.map((reward, idx) => (
+                          <Badge key={idx} variant="secondary" className="text-xs">
+                            {reward}
+                          </Badge>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </DialogContent>
+            )}
+          </Dialog>
 
           {/* 1st Place */}
-          <div className="text-center">
-            <Avatar className="w-16 h-16 mx-auto mb-2 border-2 border-gaming-gold">
-              <AvatarFallback className="bg-gradient-to-r from-yellow-400 to-orange-500 font-bold text-white">J</AvatarFallback>
-            </Avatar>
-            <div className="bg-gaming-gold text-black text-sm font-bold px-3 py-1 rounded">1</div>
-            <p className="text-sm mt-1 font-semibold">Julien D</p>
-          </div>
+          <Dialog>
+            <DialogTrigger asChild>
+              <div className="text-center cursor-pointer hover:opacity-80 transition-opacity">
+                <Avatar className="w-16 h-16 mx-auto mb-2 border-2 border-gaming-gold">
+                  <AvatarFallback className="bg-gradient-to-r from-yellow-400 to-orange-500 font-bold text-white">{leaderboardData[0]?.avatar}</AvatarFallback>
+                </Avatar>
+                <div className="bg-gaming-gold text-black text-sm font-bold px-3 py-1 rounded">1</div>
+                <p className="text-sm mt-1 font-semibold">{leaderboardData[0]?.name}</p>
+              </div>
+            </DialogTrigger>
+            {leaderboardData[0] && (
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-3">
+                    <Avatar className="w-12 h-12">
+                      <AvatarFallback className="bg-primary text-primary-foreground font-bold">
+                        {leaderboardData[0].avatar}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <div className="font-bold">{leaderboardData[0].name}</div>
+                      <div className="text-sm text-muted-foreground">@{leaderboardData[0].username}</div>
+                    </div>
+                  </DialogTitle>
+                </DialogHeader>
+                
+                <div className="space-y-4">
+                  {/* Stats Cards */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <Card>
+                      <CardContent className="p-3 text-center">
+                        <Trophy className="w-5 h-5 mx-auto mb-1 text-primary" />
+                        <div className="text-lg font-bold">{leaderboardData[0].points}</div>
+                        <div className="text-xs text-muted-foreground">Points</div>
+                      </CardContent>
+                    </Card>
+                    
+                    <Card>
+                      <CardContent className="p-3 text-center">
+                        <Target className="w-5 h-5 mx-auto mb-1 text-green-500" />
+                        <div className="text-lg font-bold">{leaderboardData[0].correctPredictions}/{leaderboardData[0].totalPredictions}</div>
+                        <div className="text-xs text-muted-foreground">Réussis</div>
+                      </CardContent>
+                    </Card>
+                    
+                    <Card>
+                      <CardContent className="p-3 text-center">
+                        <Zap className="w-5 h-5 mx-auto mb-1 text-orange-500" />
+                        <div className="text-lg font-bold">{leaderboardData[0].winStreak}</div>
+                        <div className="text-xs text-muted-foreground">Série</div>
+                      </CardContent>
+                    </Card>
+                    
+                    <Card>
+                      <CardContent className="p-3 text-center">
+                        <Award className="w-5 h-5 mx-auto mb-1 text-purple-500" />
+                        <div className="text-lg font-bold">{leaderboardData[0].rewards.length}</div>
+                        <div className="text-xs text-muted-foreground">Récompenses</div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                  
+                  {/* Recent Matches */}
+                  {leaderboardData[0].recentMatches.length > 0 && (
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-sm">Matchs récents</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-2">
+                        {leaderboardData[0].recentMatches.map((match, idx) => (
+                          <div key={idx} className="flex items-center justify-between text-xs">
+                            <span className="flex-1">{match.opponent}</span>
+                            <span className="font-medium">{match.prediction}</span>
+                            <Badge 
+                              variant={match.result === 'correct' ? 'default' : 'destructive'}
+                              className="ml-2 text-xs"
+                            >
+                              {match.result === 'correct' ? '✓' : '✗'}
+                            </Badge>
+                          </div>
+                        ))}
+                      </CardContent>
+                    </Card>
+                  )}
+                  
+                  {/* Rewards */}
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm">Récompenses</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex flex-wrap gap-1">
+                        {leaderboardData[0].rewards.map((reward, idx) => (
+                          <Badge key={idx} variant="secondary" className="text-xs">
+                            {reward}
+                          </Badge>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </DialogContent>
+            )}
+          </Dialog>
 
           {/* 3rd Place */}
-          <div className="text-center">
-            <Avatar className="w-12 h-12 mx-auto mb-2 border-2 border-orange-600">
-              <AvatarFallback className="bg-secondary font-bold">J</AvatarFallback>
-            </Avatar>
-            <div className="bg-orange-600 text-white text-xs font-bold px-2 py-1 rounded">3</div>
-            <p className="text-xs mt-1">Julien D</p>
-          </div>
+          <Dialog>
+            <DialogTrigger asChild>
+              <div className="text-center cursor-pointer hover:opacity-80 transition-opacity">
+                <Avatar className="w-12 h-12 mx-auto mb-2 border-2 border-orange-600">
+                  <AvatarFallback className="bg-secondary font-bold">{leaderboardData[2]?.avatar}</AvatarFallback>
+                </Avatar>
+                <div className="bg-orange-600 text-white text-xs font-bold px-2 py-1 rounded">3</div>
+                <p className="text-xs mt-1">{leaderboardData[2]?.name}</p>
+              </div>
+            </DialogTrigger>
+            {leaderboardData[2] && (
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-3">
+                    <Avatar className="w-12 h-12">
+                      <AvatarFallback className="bg-primary text-primary-foreground font-bold">
+                        {leaderboardData[2].avatar}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <div className="font-bold">{leaderboardData[2].name}</div>
+                      <div className="text-sm text-muted-foreground">@{leaderboardData[2].username}</div>
+                    </div>
+                  </DialogTitle>
+                </DialogHeader>
+                
+                <div className="space-y-4">
+                  {/* Stats Cards */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <Card>
+                      <CardContent className="p-3 text-center">
+                        <Trophy className="w-5 h-5 mx-auto mb-1 text-primary" />
+                        <div className="text-lg font-bold">{leaderboardData[2].points}</div>
+                        <div className="text-xs text-muted-foreground">Points</div>
+                      </CardContent>
+                    </Card>
+                    
+                    <Card>
+                      <CardContent className="p-3 text-center">
+                        <Target className="w-5 h-5 mx-auto mb-1 text-green-500" />
+                        <div className="text-lg font-bold">{leaderboardData[2].correctPredictions}/{leaderboardData[2].totalPredictions}</div>
+                        <div className="text-xs text-muted-foreground">Réussis</div>
+                      </CardContent>
+                    </Card>
+                    
+                    <Card>
+                      <CardContent className="p-3 text-center">
+                        <Zap className="w-5 h-5 mx-auto mb-1 text-orange-500" />
+                        <div className="text-lg font-bold">{leaderboardData[2].winStreak}</div>
+                        <div className="text-xs text-muted-foreground">Série</div>
+                      </CardContent>
+                    </Card>
+                    
+                    <Card>
+                      <CardContent className="p-3 text-center">
+                        <Award className="w-5 h-5 mx-auto mb-1 text-purple-500" />
+                        <div className="text-lg font-bold">{leaderboardData[2].rewards.length}</div>
+                        <div className="text-xs text-muted-foreground">Récompenses</div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                  
+                  {/* Recent Matches */}
+                  {leaderboardData[2].recentMatches.length > 0 && (
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-sm">Matchs récents</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-2">
+                        {leaderboardData[2].recentMatches.map((match, idx) => (
+                          <div key={idx} className="flex items-center justify-between text-xs">
+                            <span className="flex-1">{match.opponent}</span>
+                            <span className="font-medium">{match.prediction}</span>
+                            <Badge 
+                              variant={match.result === 'correct' ? 'default' : 'destructive'}
+                              className="ml-2 text-xs"
+                            >
+                              {match.result === 'correct' ? '✓' : '✗'}
+                            </Badge>
+                          </div>
+                        ))}
+                      </CardContent>
+                    </Card>
+                  )}
+                  
+                  {/* Rewards */}
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm">Récompenses</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex flex-wrap gap-1">
+                        {leaderboardData[2].rewards.map((reward, idx) => (
+                          <Badge key={idx} variant="secondary" className="text-xs">
+                            {reward}
+                          </Badge>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </DialogContent>
+            )}
+          </Dialog>
         </div>
 
         {/* Current User Highlight */}
