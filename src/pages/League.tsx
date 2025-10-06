@@ -158,9 +158,11 @@ export const League = () => {
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError || !user) {
         toast.error('Vous devez être connecté pour créer une ligue');
+        navigate('/auth');
         return;
       }
 
@@ -168,7 +170,10 @@ export const League = () => {
       const { data: inviteCodeData, error: inviteError } = await supabase
         .rpc('generate_invite_code');
       
-      if (inviteError) throw inviteError;
+      if (inviteError) {
+        console.error('Error generating invite code:', inviteError);
+        throw inviteError;
+      }
 
       const { data, error } = await supabase
         .from('private_leagues')
@@ -181,15 +186,27 @@ export const League = () => {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error inserting private league:', error);
+        throw error;
+      }
 
       toast.success('Ligue créée avec succès !');
       setCreatedInviteCode(data.invite_code);
       fetchPrivateLeagues();
       form.reset();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating private league:', error);
-      toast.error('Erreur lors de la création de la ligue');
+      
+      // Handle specific error messages
+      if (error.message?.includes('email') || error.code === 'email_not_confirmed') {
+        toast.error('Veuillez confirmer votre email avant de créer une ligue');
+      } else if (error.message?.includes('JWT')) {
+        toast.error('Session expirée. Veuillez vous reconnecter');
+        navigate('/auth');
+      } else {
+        toast.error('Erreur lors de la création de la ligue: ' + (error.message || 'Erreur inconnue'));
+      }
     }
   };
 

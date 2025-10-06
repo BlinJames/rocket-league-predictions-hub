@@ -70,6 +70,12 @@ export const Auth = () => {
             description: 'Email ou mot de passe incorrect',
             variant: 'destructive',
           });
+        } else if (error.message.includes('Email not confirmed')) {
+          toast({
+            title: 'Email non confirmé',
+            description: 'Veuillez vérifier vos emails et cliquer sur le lien de confirmation',
+            variant: 'destructive',
+          });
         } else {
           throw error;
         }
