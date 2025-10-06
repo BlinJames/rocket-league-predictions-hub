@@ -226,6 +226,73 @@ export type Database = {
           },
         ]
       }
+      private_league_members: {
+        Row: {
+          id: string
+          joined_at: string
+          private_league_id: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          joined_at?: string
+          private_league_id: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          joined_at?: string
+          private_league_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "private_league_members_private_league_id_fkey"
+            columns: ["private_league_id"]
+            isOneToOne: false
+            referencedRelation: "private_leagues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      private_leagues: {
+        Row: {
+          based_on_league_id: string
+          created_at: string
+          created_by: string
+          id: string
+          invite_code: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          based_on_league_id: string
+          created_at?: string
+          created_by: string
+          id?: string
+          invite_code: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          based_on_league_id?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          invite_code?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "private_leagues_based_on_league_id_fkey"
+            columns: ["based_on_league_id"]
+            isOneToOne: false
+            referencedRelation: "leagues"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -364,7 +431,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      generate_invite_code: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never
