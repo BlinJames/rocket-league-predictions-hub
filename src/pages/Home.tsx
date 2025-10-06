@@ -1,10 +1,11 @@
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
-import { Trophy, Users, Calendar, TrendingUp } from 'lucide-react';
+import { Trophy, Users, Calendar, TrendingUp, LogIn } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import type { User } from '@supabase/supabase-js';
 
 interface League {
   id: string;
@@ -19,9 +20,21 @@ export const Home = () => {
   const [activeLeague, setActiveLeague] = useState<League | null>(null);
   const [upcomingLeagues, setUpcomingLeagues] = useState<League[]>([]);
   const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
+    // Check auth status
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setUser(session?.user ?? null);
+    });
+
     fetchLeagues();
+
+    return () => subscription.unsubscribe();
   }, []);
 
   const fetchLeagues = async () => {
@@ -71,10 +84,25 @@ export const Home = () => {
       {/* Header */}
       <header className="p-4 border-b border-border">
         <div className="flex justify-between items-center">
-          <h1 className="text-xl font-bold">Accueil</h1>
-          <Badge variant="secondary" className="text-xs">
-            Rocket League
-          </Badge>
+          <div>
+            <h1 className="text-xl font-bold">Accueil</h1>
+            {user && (
+              <p className="text-xs text-muted-foreground">
+                Bienvenue, {user.email?.split('@')[0]}
+              </p>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {!user && (
+              <Button size="sm" variant="outline" onClick={() => navigate('/auth')}>
+                <LogIn className="w-4 h-4 mr-1" />
+                Connexion
+              </Button>
+            )}
+            <Badge variant="secondary" className="text-xs">
+              Rocket League
+            </Badge>
+          </div>
         </div>
       </header>
 

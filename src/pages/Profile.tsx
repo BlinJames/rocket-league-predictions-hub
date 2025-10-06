@@ -1,4 +1,4 @@
-import { Settings, Edit, Calendar, Trophy, Target, X } from 'lucide-react';
+import { Settings, Edit, Calendar, Trophy, Target, X, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -9,6 +9,8 @@ import { Card } from '@/components/ui/card';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
+import { toast } from '@/hooks/use-toast';
+import type { User } from '@supabase/supabase-js';
 
 export const Profile = () => {
   const navigate = useNavigate();
@@ -16,12 +18,81 @@ export const Profile = () => {
   const [selectedPrediction, setSelectedPrediction] = useState<any>(null);
   const [selectedReward, setSelectedReward] = useState<any>(null);
   const [leagues, setLeagues] = useState<any[]>([]);
+  const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState({
-    displayName: 'Julien D.',
-    username: '@juliend234',
-    email: 'julien@example.com',
+    displayName: '',
+    username: '',
+    email: '',
     avatar: null
   });
+
+  useEffect(() => {
+    // Check auth status
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session?.user) {
+        navigate('/auth');
+        return;
+      }
+      setUser(session.user);
+      fetchProfile(session.user.id);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!session?.user) {
+        navigate('/auth');
+        return;
+      }
+      setUser(session.user);
+      fetchProfile(session.user.id);
+    });
+
+    fetchLeagues();
+
+    return () => subscription.unsubscribe();
+  }, [navigate]);
+
+  const fetchProfile = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+
+      if (error) throw error;
+      
+      if (data) {
+        setProfile({
+          displayName: data.display_name || '',
+          username: data.username || '',
+          email: user?.email || '',
+          avatar: data.avatar_url
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching profile:', error);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      
+      toast({
+        title: 'Déconnexion réussie',
+        description: 'À bientôt !',
+      });
+      navigate('/auth');
+    } catch (error: any) {
+      console.error('Logout error:', error);
+      toast({
+        title: 'Erreur',
+        description: error.message || 'Erreur lors de la déconnexion',
+        variant: 'destructive',
+      });
+    }
+  };
 
   const predictions = [
     {
@@ -87,7 +158,7 @@ export const Profile = () => {
   ];
 
   useEffect(() => {
-    fetchLeagues();
+    // Fetch functions are now defined above
   }, []);
 
   const fetchLeagues = async () => {
@@ -125,73 +196,90 @@ export const Profile = () => {
       <header className="flex justify-between items-center p-4 border-b border-border">
         <div className="flex items-center gap-3">
           <Avatar className="w-10 h-10">
-            <AvatarFallback className="bg-primary text-primary-foreground font-bold">
-              J
-            </AvatarFallback>
+            {profile.avatar ? (
+              <AvatarImage src={profile.avatar} alt={profile.displayName} />
+            ) : (
+              <AvatarFallback className="bg-primary text-primary-foreground font-bold">
+                {profile.displayName?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'}
+              </AvatarFallback>
+            )}
           </Avatar>
           <div>
-            <h1 className="font-bold">Julien D.</h1>
-            <p className="text-xs text-muted-foreground">@juliend234</p>
+            <h1 className="font-bold">{profile.displayName || 'Utilisateur'}</h1>
+            <p className="text-xs text-muted-foreground">{profile.username || user?.email}</p>
           </div>
         </div>
-        <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
-          <DialogTrigger asChild>
-            <Button variant="ghost" size="icon">
-              <Settings size={20} />
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="card-gaming">
-            <DialogHeader>
-              <DialogTitle>Paramètres du profil</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="displayName">Nom d'affichage</Label>
-                <Input 
-                  id="displayName" 
-                  value={profile.displayName} 
-                  onChange={(e) => setProfile({...profile, displayName: e.target.value})}
-                />
+        <div className="flex items-center gap-2">
+          <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+            <DialogTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <Settings size={20} />
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="card-gaming">
+              <DialogHeader>
+                <DialogTitle>Paramètres du profil</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="displayName">Nom d'affichage</Label>
+                  <Input 
+                    id="displayName" 
+                    value={profile.displayName} 
+                    onChange={(e) => setProfile({...profile, displayName: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="username">Nom d'utilisateur</Label>
+                  <Input 
+                    id="username" 
+                    value={profile.username} 
+                    onChange={(e) => setProfile({...profile, username: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="email">Email</Label>
+                  <Input 
+                    id="email" 
+                    type="email" 
+                    value={user?.email || ''} 
+                    disabled
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    L'email ne peut pas être modifié ici
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Button 
+                    variant="outline" 
+                    className="w-full" 
+                    onClick={async () => {
+                      if (user?.email) {
+                        const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
+                          redirectTo: `${window.location.origin}/`,
+                        });
+                        if (!error) {
+                          toast({
+                            title: 'Email envoyé',
+                            description: 'Vérifiez vos emails pour réinitialiser votre mot de passe',
+                          });
+                        }
+                      }
+                    }}
+                  >
+                    Réinitialiser le mot de passe
+                  </Button>
+                  <Button className="w-full btn-gaming-primary">
+                    Sauvegarder les modifications
+                  </Button>
+                </div>
               </div>
-              <div>
-                <Label htmlFor="username">Nom d'utilisateur</Label>
-                <Input 
-                  id="username" 
-                  value={profile.username} 
-                  onChange={(e) => setProfile({...profile, username: e.target.value})}
-                />
-              </div>
-              <div>
-                <Label htmlFor="email">Email</Label>
-                <Input 
-                  id="email" 
-                  type="email" 
-                  value={profile.email} 
-                  onChange={(e) => setProfile({...profile, email: e.target.value})}
-                />
-              </div>
-              <div>
-                <Label htmlFor="confirmEmail">Confirmer l'email</Label>
-                <Input id="confirmEmail" type="email" placeholder="Confirmer l'email" />
-              </div>
-              <div className="space-y-2">
-                <Button 
-                  variant="outline" 
-                  className="w-full" 
-                  onClick={() => {
-                    // TODO: Implement password reset
-                    console.log('Send password reset email');
-                  }}
-                >
-                  Envoyer un lien de réinitialisation
-                </Button>
-                <Button className="w-full btn-gaming-primary">
-                  Sauvegarder les modifications
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogContent>
+          </Dialog>
+          <Button variant="ghost" size="icon" onClick={handleLogout} title="Se déconnecter">
+            <LogOut size={20} />
+          </Button>
+        </div>
       </header>
 
       {/* Stats */}

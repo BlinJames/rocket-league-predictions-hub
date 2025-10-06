@@ -10,6 +10,7 @@ import { Leaderboard } from "./pages/Leaderboard";
 import { League } from "./pages/League";
 import { MatchDetails } from "./pages/MatchDetails";
 import { Predictions } from "./pages/Predictions";
+import { Auth } from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -22,18 +23,19 @@ const App = () => {
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          <MobileLayout>
-            <Routes>
+          <Routes>
+            <Route path="/auth" element={<Auth />} />
+            <Route element={<MobileLayout />}>
               <Route path="/" element={<Home />} />
               <Route path="/profil" element={<Profile />} />
               <Route path="/classement" element={<Leaderboard />} />
               <Route path="/leagues" element={<League />} />
               <Route path="/match/:id" element={<MatchDetails />} />
               <Route path="/predictions" element={<Predictions />} />
-              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </MobileLayout>
+            </Route>
+            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>
