@@ -4,22 +4,209 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Trophy, Target, Zap, Award } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Globe, Users } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
+
+interface LeagueOption {
+  id: string;
+  name: string;
+  type: 'public' | 'private';
+}
+
+interface LeaderboardEntry {
+  rank: number;
+  user_id: string;
+  username: string;
+  display_name: string;
+  avatar_url: string | null;
+  total_points: number;
+  correct_predictions: number;
+  total_predictions: number;
+  current_streak: number;
+}
 
 export const Leaderboard = () => {
-  const [selectedLeague, setSelectedLeague] = useState('RLCS M1');
-  
-  const leagues = [
-    'RLCS M1',
-    'RLCS M2', 
-    'World Championship',
-    'Regional Championship'
-  ];
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const leagueFromQuery = searchParams.get('league');
+  const typeFromQuery = searchParams.get('type') as 'public' | 'private' | null;
 
+  const [leagueType, setLeagueType] = useState<'public' | 'private'>(typeFromQuery || 'public');
+  const [publicLeagues, setPublicLeagues] = useState<LeagueOption[]>([]);
+  const [privateLeagues, setPrivateLeagues] = useState<LeagueOption[]>([]);
+  const [selectedLeague, setSelectedLeague] = useState<string>(leagueFromQuery || '');
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchLeagues();
+  }, []);
+
+  // Handle query params
+  useEffect(() => {
+    if (leagueFromQuery && typeFromQuery) {
+      setSelectedLeague(leagueFromQuery);
+      setLeagueType(typeFromQuery);
+    }
+  }, [leagueFromQuery, typeFromQuery]);
+
+  useEffect(() => {
+    if (selectedLeague) {
+      if (leagueType === 'public') {
+        fetchPublicLeaderboard(selectedLeague);
+      } else {
+        fetchPrivateLeaderboard(selectedLeague);
+      }
+    }
+  }, [selectedLeague, leagueType]);
+
+  const fetchLeagues = async () => {
+    try {
+      // Fetch public leagues
+      const { data: publicData, error: publicError } = await supabase
+        .from('leagues')
+        .select('id, name')
+        .order('name');
+
+      if (publicError) throw publicError;
+      
+      const publicLeagueOptions = (publicData || []).map(l => ({
+        id: l.id,
+        name: l.name,
+        type: 'public' as const
+      }));
+      setPublicLeagues(publicLeagueOptions);
+
+      // Fetch private leagues the user is member of
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: privateData, error: privateError } = await supabase
+          .from('private_leagues')
+          .select('id, name')
+          .order('created_at', { ascending: false });
+
+        if (privateError) throw privateError;
+        
+        const privateLeagueOptions = (privateData || []).map(l => ({
+          id: l.id,
+          name: l.name,
+          type: 'private' as const
+        }));
+        setPrivateLeagues(privateLeagueOptions);
+      }
+
+      // Set initial selection
+      if (publicLeagueOptions.length > 0) {
+        setSelectedLeague(publicLeagueOptions[0].id);
+      }
+    } catch (error) {
+      console.error('Error fetching leagues:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchPublicLeaderboard = async (leagueId: string) => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('user_id, username, display_name, avatar_url, total_points, correct_predictions, total_predictions, current_streak')
+        .order('total_points', { ascending: false })
+        .limit(50);
+
+      if (error) throw error;
+
+      const leaderboardData = (data || []).map((entry, index) => ({
+        rank: index + 1,
+        ...entry
+      }));
+
+      setLeaderboard(leaderboardData);
+    } catch (error) {
+      console.error('Error fetching public leaderboard:', error);
+      setLeaderboard([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchPrivateLeaderboard = async (privateLeagueId: string) => {
+    try {
+      setLoading(true);
+      
+      // Get members of the private league
+      const { data: members, error: membersError } = await supabase
+        .from('private_league_members')
+        .select('user_id')
+        .eq('private_league_id', privateLeagueId);
+
+      if (membersError) throw membersError;
+
+      const userIds = (members || []).map(m => m.user_id);
+
+      if (userIds.length === 0) {
+        setLeaderboard([]);
+        setLoading(false);
+        return;
+      }
+
+      // Get profiles for these users
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('user_id, username, display_name, avatar_url, total_points, correct_predictions, total_predictions, current_streak')
+        .in('user_id', userIds)
+        .order('total_points', { ascending: false });
+
+      if (error) throw error;
+
+      const leaderboardData = (data || []).map((entry, index) => ({
+        rank: index + 1,
+        ...entry
+      }));
+
+      setLeaderboard(leaderboardData);
+    } catch (error) {
+      console.error('Error fetching private leaderboard:', error);
+      setLeaderboard([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const currentLeagues = leagueType === 'public' ? publicLeagues : privateLeagues;
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Chargement du classement...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const topThree = leaderboard.slice(0, 3);
+  const restOfLeaderboard = leaderboard.slice(3);
+
+  const getUserInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  // Mock data for user details modal (to be replaced with real data)
   const leaderboardData = [
     { 
       rank: 1, 
-      name: 'Alex Mendez', 
+      name: 'User',
       username: 'AlexRL_Pro', 
       points: 1247, 
       avatar: 'AM',
@@ -272,483 +459,151 @@ export const Leaderboard = () => {
     <div className="min-h-screen bg-black">
       {/* Header */}
       <header className="p-4 border-b border-border">
-        <div className="flex justify-between items-center">
-          <h1 className="text-xl font-bold">Classement</h1>
+        <h1 className="text-xl font-bold">Classement</h1>
+        <p className="text-sm text-muted-foreground">Comparez vos performances</p>
+      </header>
+
+      {/* League Type Tabs */}
+      <div className="px-4 pt-4">
+        <Tabs value={leagueType} onValueChange={(v) => setLeagueType(v as 'public' | 'private')} className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="public" className="flex items-center gap-2">
+              <Globe className="h-4 w-4" />
+              Publiques
+            </TabsTrigger>
+            <TabsTrigger value="private" className="flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              Mes ligues ({privateLeagues.length})
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
+
+      {/* League Selector */}
+      <div className="px-4 py-4 border-b border-border">
+        {currentLeagues.length > 0 ? (
           <Select value={selectedLeague} onValueChange={setSelectedLeague}>
-            <SelectTrigger className="w-[140px]">
-              <SelectValue />
+            <SelectTrigger>
+              <SelectValue placeholder="Sélectionnez une ligue" />
             </SelectTrigger>
             <SelectContent>
-              {leagues.map((league) => (
-                <SelectItem key={league} value={league}>
-                  {league}
+              {currentLeagues.map((league) => (
+                <SelectItem key={league.id} value={league.id}>
+                  {league.name}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-        </div>
-      </header>
+        ) : (
+          <div className="text-center py-4">
+            <p className="text-sm text-muted-foreground">
+              {leagueType === 'private' 
+                ? 'Vous n\'avez rejoint aucune ligue privée'
+                : 'Aucune ligue disponible'}
+            </p>
+          </div>
+        )}
+      </div>
 
       {/* Podium */}
-      <div className="px-4 py-6">
-        <div className="flex items-end justify-center gap-4 mb-6">
-          {/* 2nd Place */}
-          <Dialog>
-            <DialogTrigger asChild>
-              <div className="text-center cursor-pointer hover:opacity-80 transition-opacity">
+      {leaderboard.length > 0 ? (
+        <div className="px-4 py-6">
+          <div className="flex items-end justify-center gap-4 mb-6">
+            {/* 2nd Place */}
+            {topThree[1] && (
+              <div className="text-center">
                 <Avatar className="w-12 h-12 mx-auto mb-2 border-2 border-gray-400">
-                  <AvatarFallback className="bg-secondary font-bold">{leaderboardData[1]?.avatar}</AvatarFallback>
+                  {topThree[1].avatar_url ? (
+                    <AvatarImage src={topThree[1].avatar_url} />
+                  ) : null}
+                  <AvatarFallback className="bg-secondary font-bold">
+                    {getUserInitials(topThree[1].display_name || topThree[1].username)}
+                  </AvatarFallback>
                 </Avatar>
                 <div className="bg-gray-400 text-black text-xs font-bold px-2 py-1 rounded">2</div>
-                <p className="text-xs mt-1">{leaderboardData[1]?.name}</p>
+                <p className="text-xs mt-1">{topThree[1].display_name || topThree[1].username}</p>
+                <p className="text-xs text-muted-foreground">{topThree[1].total_points} pts</p>
               </div>
-            </DialogTrigger>
-            {leaderboardData[1] && (
-              <DialogContent className="max-w-md">
-                <DialogHeader>
-                  <DialogTitle className="flex items-center gap-3">
-                    <Avatar className="w-12 h-12">
-                      <AvatarFallback className="bg-primary text-primary-foreground font-bold">
-                        {leaderboardData[1].avatar}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <div className="font-bold">{leaderboardData[1].name}</div>
-                      <div className="text-sm text-muted-foreground">@{leaderboardData[1].username}</div>
-                    </div>
-                  </DialogTitle>
-                </DialogHeader>
-                
-                <div className="space-y-4">
-                  {/* Stats Cards */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <Card>
-                      <CardContent className="p-3 text-center">
-                        <Trophy className="w-5 h-5 mx-auto mb-1 text-primary" />
-                        <div className="text-lg font-bold">{leaderboardData[1].points}</div>
-                        <div className="text-xs text-muted-foreground">Points</div>
-                      </CardContent>
-                    </Card>
-                    
-                    <Card>
-                      <CardContent className="p-3 text-center">
-                        <Target className="w-5 h-5 mx-auto mb-1 text-green-500" />
-                        <div className="text-lg font-bold">{leaderboardData[1].correctPredictions}/{leaderboardData[1].totalPredictions}</div>
-                        <div className="text-xs text-muted-foreground">Réussis</div>
-                      </CardContent>
-                    </Card>
-                    
-                    <Card>
-                      <CardContent className="p-3 text-center">
-                        <Zap className="w-5 h-5 mx-auto mb-1 text-orange-500" />
-                        <div className="text-lg font-bold">{leaderboardData[1].winStreak}</div>
-                        <div className="text-xs text-muted-foreground">Série</div>
-                      </CardContent>
-                    </Card>
-                    
-                    <Card>
-                      <CardContent className="p-3 text-center">
-                        <Award className="w-5 h-5 mx-auto mb-1 text-purple-500" />
-                        <div className="text-lg font-bold">{leaderboardData[1].rewards.length}</div>
-                        <div className="text-xs text-muted-foreground">Récompenses</div>
-                      </CardContent>
-                    </Card>
-                  </div>
-                  
-                  {/* Recent Matches */}
-                  {leaderboardData[1].recentMatches.length > 0 && (
-                    <Card>
-                      <CardHeader className="pb-3">
-                        <CardTitle className="text-sm">Matchs récents</CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-2">
-                        {leaderboardData[1].recentMatches.map((match, idx) => (
-                          <div key={idx} className="flex items-center justify-between text-xs">
-                            <span className="flex-1">{match.opponent}</span>
-                            <span className="font-medium">{match.prediction}</span>
-                            <Badge 
-                              variant={match.result === 'correct' ? 'default' : 'destructive'}
-                              className="ml-2 text-xs"
-                            >
-                              {match.result === 'correct' ? '✓' : '✗'}
-                            </Badge>
-                          </div>
-                        ))}
-                      </CardContent>
-                    </Card>
-                  )}
-                  
-                  {/* Rewards */}
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-sm">Récompenses</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex flex-wrap gap-1">
-                        {leaderboardData[1].rewards.map((reward, idx) => (
-                          <Badge key={idx} variant="secondary" className="text-xs">
-                            {reward}
-                          </Badge>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              </DialogContent>
             )}
-          </Dialog>
-
-          {/* 1st Place */}
-          <Dialog>
-            <DialogTrigger asChild>
-              <div className="text-center cursor-pointer hover:opacity-80 transition-opacity">
+            
+            {/* 1st Place */}
+            {topThree[0] && (
+              <div className="text-center">
                 <Avatar className="w-16 h-16 mx-auto mb-2 border-2 border-gaming-gold">
-                  <AvatarFallback className="bg-gradient-to-r from-yellow-400 to-orange-500 font-bold text-white">{leaderboardData[0]?.avatar}</AvatarFallback>
+                  {topThree[0].avatar_url ? (
+                    <AvatarImage src={topThree[0].avatar_url} />
+                  ) : null}
+                  <AvatarFallback className="bg-gradient-to-r from-yellow-400 to-orange-500 font-bold text-white">
+                    {getUserInitials(topThree[0].display_name || topThree[0].username)}
+                  </AvatarFallback>
                 </Avatar>
                 <div className="bg-gaming-gold text-black text-sm font-bold px-3 py-1 rounded">1</div>
-                <p className="text-sm mt-1 font-semibold">{leaderboardData[0]?.name}</p>
+                <p className="text-sm mt-1 font-semibold">{topThree[0].display_name || topThree[0].username}</p>
+                <p className="text-sm text-muted-foreground font-medium">{topThree[0].total_points} pts</p>
               </div>
-            </DialogTrigger>
-            {leaderboardData[0] && (
-              <DialogContent className="max-w-md">
-                <DialogHeader>
-                  <DialogTitle className="flex items-center gap-3">
-                    <Avatar className="w-12 h-12">
-                      <AvatarFallback className="bg-primary text-primary-foreground font-bold">
-                        {leaderboardData[0].avatar}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <div className="font-bold">{leaderboardData[0].name}</div>
-                      <div className="text-sm text-muted-foreground">@{leaderboardData[0].username}</div>
-                    </div>
-                  </DialogTitle>
-                </DialogHeader>
-                
-                <div className="space-y-4">
-                  {/* Stats Cards */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <Card>
-                      <CardContent className="p-3 text-center">
-                        <Trophy className="w-5 h-5 mx-auto mb-1 text-primary" />
-                        <div className="text-lg font-bold">{leaderboardData[0].points}</div>
-                        <div className="text-xs text-muted-foreground">Points</div>
-                      </CardContent>
-                    </Card>
-                    
-                    <Card>
-                      <CardContent className="p-3 text-center">
-                        <Target className="w-5 h-5 mx-auto mb-1 text-green-500" />
-                        <div className="text-lg font-bold">{leaderboardData[0].correctPredictions}/{leaderboardData[0].totalPredictions}</div>
-                        <div className="text-xs text-muted-foreground">Réussis</div>
-                      </CardContent>
-                    </Card>
-                    
-                    <Card>
-                      <CardContent className="p-3 text-center">
-                        <Zap className="w-5 h-5 mx-auto mb-1 text-orange-500" />
-                        <div className="text-lg font-bold">{leaderboardData[0].winStreak}</div>
-                        <div className="text-xs text-muted-foreground">Série</div>
-                      </CardContent>
-                    </Card>
-                    
-                    <Card>
-                      <CardContent className="p-3 text-center">
-                        <Award className="w-5 h-5 mx-auto mb-1 text-purple-500" />
-                        <div className="text-lg font-bold">{leaderboardData[0].rewards.length}</div>
-                        <div className="text-xs text-muted-foreground">Récompenses</div>
-                      </CardContent>
-                    </Card>
-                  </div>
-                  
-                  {/* Recent Matches */}
-                  {leaderboardData[0].recentMatches.length > 0 && (
-                    <Card>
-                      <CardHeader className="pb-3">
-                        <CardTitle className="text-sm">Matchs récents</CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-2">
-                        {leaderboardData[0].recentMatches.map((match, idx) => (
-                          <div key={idx} className="flex items-center justify-between text-xs">
-                            <span className="flex-1">{match.opponent}</span>
-                            <span className="font-medium">{match.prediction}</span>
-                            <Badge 
-                              variant={match.result === 'correct' ? 'default' : 'destructive'}
-                              className="ml-2 text-xs"
-                            >
-                              {match.result === 'correct' ? '✓' : '✗'}
-                            </Badge>
-                          </div>
-                        ))}
-                      </CardContent>
-                    </Card>
-                  )}
-                  
-                  {/* Rewards */}
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-sm">Récompenses</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex flex-wrap gap-1">
-                        {leaderboardData[0].rewards.map((reward, idx) => (
-                          <Badge key={idx} variant="secondary" className="text-xs">
-                            {reward}
-                          </Badge>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              </DialogContent>
             )}
-          </Dialog>
-
-          {/* 3rd Place */}
-          <Dialog>
-            <DialogTrigger asChild>
-              <div className="text-center cursor-pointer hover:opacity-80 transition-opacity">
-                <Avatar className="w-12 h-12 mx-auto mb-2 border-2 border-orange-600">
-                  <AvatarFallback className="bg-secondary font-bold">{leaderboardData[2]?.avatar}</AvatarFallback>
+            
+            {/* 3rd Place */}
+            {topThree[2] && (
+              <div className="text-center">
+                <Avatar className="w-12 h-12 mx-auto mb-2 border-2 border-amber-700">
+                  {topThree[2].avatar_url ? (
+                    <AvatarImage src={topThree[2].avatar_url} />
+                  ) : null}
+                  <AvatarFallback className="bg-secondary font-bold">
+                    {getUserInitials(topThree[2].display_name || topThree[2].username)}
+                  </AvatarFallback>
                 </Avatar>
-                <div className="bg-orange-600 text-white text-xs font-bold px-2 py-1 rounded">3</div>
-                <p className="text-xs mt-1">{leaderboardData[2]?.name}</p>
+                <div className="bg-amber-700 text-white text-xs font-bold px-2 py-1 rounded">3</div>
+                <p className="text-xs mt-1">{topThree[2].display_name || topThree[2].username}</p>
+                <p className="text-xs text-muted-foreground">{topThree[2].total_points} pts</p>
               </div>
-            </DialogTrigger>
-            {leaderboardData[2] && (
-              <DialogContent className="max-w-md">
-                <DialogHeader>
-                  <DialogTitle className="flex items-center gap-3">
-                    <Avatar className="w-12 h-12">
-                      <AvatarFallback className="bg-primary text-primary-foreground font-bold">
-                        {leaderboardData[2].avatar}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <div className="font-bold">{leaderboardData[2].name}</div>
-                      <div className="text-sm text-muted-foreground">@{leaderboardData[2].username}</div>
-                    </div>
-                  </DialogTitle>
-                </DialogHeader>
-                
-                <div className="space-y-4">
-                  {/* Stats Cards */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <Card>
-                      <CardContent className="p-3 text-center">
-                        <Trophy className="w-5 h-5 mx-auto mb-1 text-primary" />
-                        <div className="text-lg font-bold">{leaderboardData[2].points}</div>
-                        <div className="text-xs text-muted-foreground">Points</div>
-                      </CardContent>
-                    </Card>
-                    
-                    <Card>
-                      <CardContent className="p-3 text-center">
-                        <Target className="w-5 h-5 mx-auto mb-1 text-green-500" />
-                        <div className="text-lg font-bold">{leaderboardData[2].correctPredictions}/{leaderboardData[2].totalPredictions}</div>
-                        <div className="text-xs text-muted-foreground">Réussis</div>
-                      </CardContent>
-                    </Card>
-                    
-                    <Card>
-                      <CardContent className="p-3 text-center">
-                        <Zap className="w-5 h-5 mx-auto mb-1 text-orange-500" />
-                        <div className="text-lg font-bold">{leaderboardData[2].winStreak}</div>
-                        <div className="text-xs text-muted-foreground">Série</div>
-                      </CardContent>
-                    </Card>
-                    
-                    <Card>
-                      <CardContent className="p-3 text-center">
-                        <Award className="w-5 h-5 mx-auto mb-1 text-purple-500" />
-                        <div className="text-lg font-bold">{leaderboardData[2].rewards.length}</div>
-                        <div className="text-xs text-muted-foreground">Récompenses</div>
-                      </CardContent>
-                    </Card>
-                  </div>
-                  
-                  {/* Recent Matches */}
-                  {leaderboardData[2].recentMatches.length > 0 && (
-                    <Card>
-                      <CardHeader className="pb-3">
-                        <CardTitle className="text-sm">Matchs récents</CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-2">
-                        {leaderboardData[2].recentMatches.map((match, idx) => (
-                          <div key={idx} className="flex items-center justify-between text-xs">
-                            <span className="flex-1">{match.opponent}</span>
-                            <span className="font-medium">{match.prediction}</span>
-                            <Badge 
-                              variant={match.result === 'correct' ? 'default' : 'destructive'}
-                              className="ml-2 text-xs"
-                            >
-                              {match.result === 'correct' ? '✓' : '✗'}
-                            </Badge>
-                          </div>
-                        ))}
-                      </CardContent>
-                    </Card>
-                  )}
-                  
-                  {/* Rewards */}
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-sm">Récompenses</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex flex-wrap gap-1">
-                        {leaderboardData[2].rewards.map((reward, idx) => (
-                          <Badge key={idx} variant="secondary" className="text-xs">
-                            {reward}
-                          </Badge>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              </DialogContent>
             )}
-          </Dialog>
-        </div>
-
-        {/* Current User Highlight */}
-        <div className="bg-primary/20 border-2 border-primary rounded-lg p-3 mb-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="text-primary font-bold">12e</span>
-              <Avatar className="w-8 h-8">
-                <AvatarFallback className="bg-primary text-primary-foreground font-bold text-sm">J</AvatarFallback>
-              </Avatar>
-              <span className="font-semibold">Julien D</span>
-            </div>
-            <span className="text-sm font-bold">134</span>
           </div>
         </div>
-      </div>
-
-      {/* Full Leaderboard */}
-      <div className="px-4">
-        <div className="space-y-2">
-          {leaderboardData.map((user, index) => (
-            <Dialog key={index}>
-              <DialogTrigger asChild>
-                <div 
-                  className={`flex items-center justify-between py-2 px-3 rounded-lg cursor-pointer hover:bg-accent/30 transition-colors ${
-                    user.rank <= 3 ? 'bg-accent/50' : 'bg-card/30'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <span className={`w-6 text-center font-bold text-sm ${
-                      user.rank <= 3 ? 'text-primary' : 'text-muted-foreground'
-                    }`}>
-                      {user.rank}
-                    </span>
-                    <Avatar className="w-8 h-8">
-                      <AvatarFallback className="bg-primary text-primary-foreground font-bold text-sm">
-                        {user.avatar}
-                      </AvatarFallback>
-                    </Avatar>
-                    <span className="font-medium text-sm">{user.name}</span>
-                  </div>
-                  <span className="text-sm font-bold">{user.points}</span>
-                </div>
-              </DialogTrigger>
-              
-              <DialogContent className="max-w-md">
-                <DialogHeader>
-                  <DialogTitle className="flex items-center gap-3">
-                    <Avatar className="w-12 h-12">
-                      <AvatarFallback className="bg-primary text-primary-foreground font-bold">
-                        {user.avatar}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <div className="font-bold">{user.name}</div>
-                      <div className="text-sm text-muted-foreground">@{user.username}</div>
-                    </div>
-                  </DialogTitle>
-                </DialogHeader>
-                
-                <div className="space-y-4">
-                  {/* Stats Cards */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <Card>
-                      <CardContent className="p-3 text-center">
-                        <Trophy className="w-5 h-5 mx-auto mb-1 text-primary" />
-                        <div className="text-lg font-bold">{user.points}</div>
-                        <div className="text-xs text-muted-foreground">Points</div>
-                      </CardContent>
-                    </Card>
-                    
-                    <Card>
-                      <CardContent className="p-3 text-center">
-                        <Target className="w-5 h-5 mx-auto mb-1 text-green-500" />
-                        <div className="text-lg font-bold">{user.correctPredictions}/{user.totalPredictions}</div>
-                        <div className="text-xs text-muted-foreground">Réussis</div>
-                      </CardContent>
-                    </Card>
-                    
-                    <Card>
-                      <CardContent className="p-3 text-center">
-                        <Zap className="w-5 h-5 mx-auto mb-1 text-orange-500" />
-                        <div className="text-lg font-bold">{user.winStreak}</div>
-                        <div className="text-xs text-muted-foreground">Série</div>
-                      </CardContent>
-                    </Card>
-                    
-                    <Card>
-                      <CardContent className="p-3 text-center">
-                        <Award className="w-5 h-5 mx-auto mb-1 text-purple-500" />
-                        <div className="text-lg font-bold">{user.rewards.length}</div>
-                        <div className="text-xs text-muted-foreground">Récompenses</div>
-                      </CardContent>
-                    </Card>
-                  </div>
-                  
-                  {/* Recent Matches */}
-                  {user.recentMatches.length > 0 && (
-                    <Card>
-                      <CardHeader className="pb-3">
-                        <CardTitle className="text-sm">Matchs récents</CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-2">
-                        {user.recentMatches.map((match, idx) => (
-                          <div key={idx} className="flex items-center justify-between text-xs">
-                            <span className="flex-1">{match.opponent}</span>
-                            <span className="font-medium">{match.prediction}</span>
-                            <Badge 
-                              variant={match.result === 'correct' ? 'default' : 'destructive'}
-                              className="ml-2 text-xs"
-                            >
-                              {match.result === 'correct' ? '✓' : '✗'}
-                            </Badge>
-                          </div>
-                        ))}
-                      </CardContent>
-                    </Card>
-                  )}
-                  
-                  {/* Rewards */}
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-sm">Récompenses</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex flex-wrap gap-1">
-                        {user.rewards.map((reward, idx) => (
-                          <Badge key={idx} variant="secondary" className="text-xs">
-                            {reward}
-                          </Badge>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              </DialogContent>
-            </Dialog>
-          ))}
+      ) : (
+        <div className="px-4 py-12 text-center">
+          <p className="text-muted-foreground">
+            {leagueType === 'private' 
+              ? 'Aucun membre dans cette ligue pour le moment'
+              : 'Aucun classement disponible'}
+          </p>
         </div>
-      </div>
+      )}
+
+      {/* Rest of Leaderboard */}
+      {restOfLeaderboard.length > 0 && (
+        <div className="px-4 pb-6">
+          <div className="space-y-2">
+            {restOfLeaderboard.map((entry) => (
+              <div key={entry.user_id} className="card-gaming flex items-center justify-between p-3">
+                <div className="flex items-center gap-3">
+                  <span className="text-muted-foreground font-bold w-6">{entry.rank}</span>
+                  <Avatar className="w-10 h-10">
+                    {entry.avatar_url ? (
+                      <AvatarImage src={entry.avatar_url} />
+                    ) : null}
+                    <AvatarFallback className="bg-primary text-primary-foreground font-bold">
+                      {getUserInitials(entry.display_name || entry.username)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <div className="font-semibold text-sm">{entry.display_name || entry.username}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {entry.correct_predictions}/{entry.total_predictions} correctes
+                    </div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="font-bold">{entry.total_points}</div>
+                  <div className="text-xs text-muted-foreground">points</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

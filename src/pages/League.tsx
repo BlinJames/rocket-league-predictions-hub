@@ -541,16 +541,24 @@ export const League = () => {
                       <Copy className="h-4 w-4" />
                     </Button>
                   </div>
-                  <Button 
-                    variant="outline" 
-                    className="w-full mt-3"
-                    onClick={() => {
-                      setSelectedLeague(league.based_on_league_id);
-                      setLeagueType('public');
-                    }}
-                  >
-                    Voir les matchs
-                  </Button>
+                  <div className="flex gap-2 mt-3">
+                    <Button 
+                      variant="outline" 
+                      className="flex-1"
+                      onClick={() => {
+                        setSelectedLeague(league.based_on_league_id);
+                        setLeagueType('public');
+                      }}
+                    >
+                      Voir les matchs
+                    </Button>
+                    <Button 
+                      className="flex-1"
+                      onClick={() => navigate('/leaderboard?league=' + league.id + '&type=private')}
+                    >
+                      Classement
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
