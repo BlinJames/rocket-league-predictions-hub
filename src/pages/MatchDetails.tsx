@@ -47,6 +47,7 @@ export const MatchDetails = () => {
   const [teamAScore, setTeamAScore] = useState<number>(0);
   const [teamBScore, setTeamBScore] = useState<number>(0);
   const [scoreErrors, setScoreErrors] = useState<string[]>([]);
+  const [selectedScoreDiff, setSelectedScoreDiff] = useState<string | null>(null);
   const [matchData, setMatchData] = useState<MatchData | null>(null);
   const [loading, setLoading] = useState(true);
   const [existingPrediction, setExistingPrediction] = useState<ExistingPrediction | null>(null);
@@ -137,7 +138,12 @@ export const MatchDetails = () => {
         // Pré-remplir les champs avec le pronostic existant
         setTeamAScore(data.predicted_score_a || 0);
         setTeamBScore(data.predicted_score_b || 0);
-        // Déterminer quelle équipe était sélectionnée
+        
+        // Déterminer quelle équipe était sélectionnée et le score
+        const winnerScore = Math.max(data.predicted_score_a, data.predicted_score_b);
+        const loserScore = Math.min(data.predicted_score_a, data.predicted_score_b);
+        setSelectedScoreDiff(`${winnerScore}-${loserScore}`);
+        
         if (matchInfo.teamA.id === data.predicted_winner_id) {
           setSelectedTeam('teamA');
         } else if (matchInfo.teamB.id === data.predicted_winner_id) {
@@ -195,15 +201,22 @@ export const MatchDetails = () => {
     return errors;
   };
 
-  const handleScoreChange = (team: 'A' | 'B', value: string) => {
-    const numValue = parseInt(value) || 0;
-    if (team === 'A') {
-      setTeamAScore(numValue);
-      setScoreErrors(validateScore(numValue, teamBScore));
+  const handleScoreSelection = (scoreDiff: string) => {
+    if (!matchData || !selectedTeam) return;
+    
+    setSelectedScoreDiff(scoreDiff);
+    const [winnerScore, loserScore] = scoreDiff.split('-').map(Number);
+    
+    // Adapter les scores selon l'équipe gagnante sélectionnée
+    if (selectedTeam === 'teamA') {
+      setTeamAScore(winnerScore);
+      setTeamBScore(loserScore);
     } else {
-      setTeamBScore(numValue);
-      setScoreErrors(validateScore(teamAScore, numValue));
+      setTeamAScore(loserScore);
+      setTeamBScore(winnerScore);
     }
+    
+    setScoreErrors([]);
   };
 
   const handlePredictionSubmit = async () => {
@@ -426,39 +439,80 @@ export const MatchDetails = () => {
                   </div>
                 </div>
 
-                {/* Score Inputs */}
+                {/* Score Selection */}
                 <div className="space-y-3">
                   <Label className="text-sm font-medium">Score final prédit</Label>
-                  <div className="flex items-center gap-4">
-                    <div className="flex-1">
-                      <Label htmlFor="teamAScore" className="text-xs text-muted-foreground">{matchData.teamA.shortName}</Label>
-                      <Input
-                        id="teamAScore"
-                        type="number"
-                        min="0"
-                        max={matchData.matchType === 'bo5' ? '3' : '4'}
-                        value={teamAScore}
-                        onChange={(e) => handleScoreChange('A', e.target.value)}
-                        className="text-center"
-                      />
-                    </div>
-                    <span className="text-muted-foreground font-bold">-</span>
-                    <div className="flex-1">
-                      <Label htmlFor="teamBScore" className="text-xs text-muted-foreground">{matchData.teamB.shortName}</Label>
-                      <Input
-                        id="teamBScore"
-                        type="number"
-                        min="0"
-                        max={matchData.matchType === 'bo5' ? '3' : '4'}
-                        value={teamBScore}
-                        onChange={(e) => handleScoreChange('B', e.target.value)}
-                        className="text-center"
-                      />
-                    </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {matchData.matchType === 'bo5' ? (
+                      <>
+                        <Button
+                          type="button"
+                          variant={selectedScoreDiff === '3-0' ? 'default' : 'outline'}
+                          onClick={() => handleScoreSelection('3-0')}
+                          className="h-16 text-lg font-bold"
+                        >
+                          3-0
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={selectedScoreDiff === '3-1' ? 'default' : 'outline'}
+                          onClick={() => handleScoreSelection('3-1')}
+                          className="h-16 text-lg font-bold"
+                        >
+                          3-1
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={selectedScoreDiff === '3-2' ? 'default' : 'outline'}
+                          onClick={() => handleScoreSelection('3-2')}
+                          className="h-16 text-lg font-bold"
+                        >
+                          3-2
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button
+                          type="button"
+                          variant={selectedScoreDiff === '4-0' ? 'default' : 'outline'}
+                          onClick={() => handleScoreSelection('4-0')}
+                          className="h-14 text-base font-bold"
+                        >
+                          4-0
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={selectedScoreDiff === '4-1' ? 'default' : 'outline'}
+                          onClick={() => handleScoreSelection('4-1')}
+                          className="h-14 text-base font-bold"
+                        >
+                          4-1
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={selectedScoreDiff === '4-2' ? 'default' : 'outline'}
+                          onClick={() => handleScoreSelection('4-2')}
+                          className="h-14 text-base font-bold"
+                        >
+                          4-2
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={selectedScoreDiff === '4-3' ? 'default' : 'outline'}
+                          onClick={() => handleScoreSelection('4-3')}
+                          className="h-14 text-base font-bold col-span-3"
+                        >
+                          4-3
+                        </Button>
+                      </>
+                    )}
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    {matchData.matchType === 'bo5' ? 'Premier à 3 victoires' : 'Premier à 4 victoires'}
-                  </p>
+                  
+                  {selectedScoreDiff && (
+                    <p className="text-sm text-muted-foreground text-center">
+                      Score: {matchData.teamA.shortName} {teamAScore} - {teamBScore} {matchData.teamB.shortName}
+                    </p>
+                  )}
                 </div>
 
                 {/* Score Validation Errors */}
@@ -480,7 +534,7 @@ export const MatchDetails = () => {
                 <Button 
                   onClick={handlePredictionSubmit} 
                   className="btn-gaming-primary"
-                  disabled={scoreErrors.length > 0 || !selectedTeam}
+                  disabled={!selectedScoreDiff || !selectedTeam}
                 >
                   {existingPrediction ? 'Modifier le prono' : 'Confirmer le prono'}
                 </Button>
